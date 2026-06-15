@@ -53,31 +53,32 @@ Config.Profiles = {
         disableFiring = true,
         disableMelee = true,
         disableDriveBy = true,
-        disableVehicleDamage = false,
-        invinciblePlayers = false,
-        invincibleVehicles = false,
-        disableCollisions = false,
+        disableVehicleDamage = true,
+        invinciblePlayers = true,
+        invincibleVehicles = true,
+        disableCollisions = true,
         maxVehicleSpeed = 60.0, -- km/h
         allowEmergencyWeapons = true, -- Permite a policías/médicos usar armas
         hideWeaponOnEnter = true,
         restoreWeaponOnExit = true,
         blockVehicleTheft = true,
-        blockFrisk = false,
-        blockHandcuffs = false,
-        blockKidnap = false,
-        blockInventory = false,
-        disableRoleplayActions = false
+        blockFrisk = true,
+        blockHandcuffs = true,
+        blockKidnap = true,
+        blockInventory = true,
+        disableRoleplayActions = false,
+        passiveAlpha = 255
     },
 
     OOC = {
-        disableWeapons = true,
-        disableFiring = true,
-        disableMelee = true,
-        disableDriveBy = true,
-        disableVehicleDamage = true,
-        invinciblePlayers = true,
-        invincibleVehicles = true,
-        disableCollisions = true,
+        disableWeapons = false,
+        disableFiring = false,
+        disableMelee = false,
+        disableDriveBy = false,
+        disableVehicleDamage = false,
+        invinciblePlayers = false,
+        invincibleVehicles = false,
+        disableCollisions = false,
         maxVehicleSpeed = 30.0, -- km/h
         allowEmergencyWeapons = false,
         hideWeaponOnEnter = true,
@@ -87,7 +88,8 @@ Config.Profiles = {
         blockHandcuffs = true,
         blockKidnap = true,
         blockInventory = true,
-        disableRoleplayActions = true
+        disableRoleplayActions = true,
+        passiveAlpha = 150
     },
 
     MIXED = {
@@ -108,7 +110,8 @@ Config.Profiles = {
         blockHandcuffs = true,
         blockKidnap = true,
         blockInventory = false,
-        disableRoleplayActions = false
+        disableRoleplayActions = false,
+        passiveAlpha = 200
     },
 
     CUSTOM = {
@@ -129,7 +132,8 @@ Config.Profiles = {
         blockHandcuffs = false,
         blockKidnap = false,
         blockInventory = false,
-        disableRoleplayActions = false
+        disableRoleplayActions = false,
+        passiveAlpha = 255
     }
 }
 

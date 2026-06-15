@@ -19,7 +19,8 @@ Constants.RuleDefinitions = {
     blockHandcuffs = { label = "Bloquear esposas", desc = "Previene que esposen al jugador" },
     blockKidnap = { label = "Bloquear secuestros", desc = "Previene cargar o secuestrar al jugador" },
     blockInventory = { label = "Bloquear inventario", desc = "Previene abrir mochilas/inventario" },
-    disableRoleplayActions = { label = "Bloquear acciones de Rol", desc = "Restringe esposas, cacheos y secuestros por completo" }
+    disableRoleplayActions = { label = "Bloquear acciones de Rol", desc = "Restringe esposas, cacheos y secuestros por completo" },
+    passiveAlpha = { label = "Opacidad Pasiva (0-255)", desc = "Transparencia del jugador y vehículo" }
 }
 
 -- Configuración por defecto para inicializar una nueva zona
@@ -41,7 +42,8 @@ Constants.DefaultZoneRules = {
     blockHandcuffs = false,
     blockKidnap = false,
     blockInventory = false,
-    disableRoleplayActions = false
+    disableRoleplayActions = false,
+    passiveAlpha = 255
 }
 
 Constants.DefaultZoneVisual = {

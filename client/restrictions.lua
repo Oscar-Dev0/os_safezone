@@ -82,7 +82,7 @@ function ForceRemoveRestrictions()
     local playerPed = PlayerPedId()
     local playerId = PlayerId()
     
-    -- Quitar invencibilidad
+    -- Quitar invencibilidad y efectos de modo pasivo
     SetPlayerInvincible(playerId, false)
     SetEntityInvincible(playerPed, false)
     SetEntityCanBeDamaged(playerPed, true)
@@ -90,6 +90,7 @@ function ForceRemoveRestrictions()
     SetEntityProofs(playerPed, false, false, false, false, false, false, false, false)
     SetPedCanRagdoll(playerPed, true)
     SetPedConfigFlag(playerPed, 17, false)
+    ResetEntityAlpha(playerPed)
     
     -- Reestablecer límites de velocidad de vehículos
     local vehicle = GetVehiclePedIsIn(playerPed, false)
@@ -97,8 +98,9 @@ function ForceRemoveRestrictions()
         SetEntityMaxSpeed(vehicle, 1000.0) -- Quitar límite de velocidad
         SetEntityCanBeDamaged(vehicle, true)
         SetEntityInvincible(vehicle, false)
-        SetVehicleProofs(vehicle, false, false, false, false, false, false, false, false)
+        SetEntityProofs(vehicle, false, false, false, false, false, false, false, false)
         SetVehicleTyresCanBurst(vehicle, true)
+        ResetEntityAlpha(vehicle)
     end
     
     -- Reestablecer disparos
@@ -119,28 +121,57 @@ CreateThread(function()
             local playerId = PlayerId()
             local rules = CurrentSafeZone.rules
             
-            -- 1. Regla: Invencibilidad de Jugador
+            -- 1. Regla: Invencibilidad de Jugador (Modo Pasivo GTA Online)
             if rules.invinciblePlayers then
                 SetPlayerInvincible(playerId, true)
                 SetEntityInvincible(ped, true)
                 SetEntityCanBeDamaged(ped, false)
                 SetEntityProofs(ped, true, true, true, true, true, true, true, true)
-                SetPedMinHealth(ped, 100)
                 SetEntityHealth(ped, GetEntityMaxHealth(ped))
+                SetEntityAlpha(ped, 150, false)
+                
+                -- Deshabilitar colisiones con otros jugadores
+                local activePlayers = GetActivePlayers()
+                for i = 1, #activePlayers do
+                    local player = activePlayers[i]
+                    local targetPed = GetPlayerPed(player)
+                    if targetPed ~= 0 and targetPed ~= ped then
+                        SetEntityNoCollisionEntity(ped, targetPed, true)
+                        
+                        -- Colisiones de vehículos entre jugadores
+                        local myVeh = GetVehiclePedIsIn(ped, false)
+                        local targetVeh = GetVehiclePedIsIn(targetPed, false)
+                        if myVeh ~= 0 and targetVeh ~= 0 and myVeh ~= targetVeh then
+                            SetEntityNoCollisionEntity(myVeh, targetVeh, true)
+                        end
+                    end
+                end
+                
+                -- Efecto fantasma en vehículo propio
+                local myVeh = GetVehiclePedIsIn(ped, false)
+                if myVeh ~= 0 then
+                    SetEntityAlpha(myVeh, 150, false)
+                end
                 
                 if not GetPlayerInvincible(playerId) then
                     SetPedCanRagdoll(ped, false)
                     SetPedConfigFlag(ped, 17, true)
                 end
             else
-                -- Si la zona no especifica invencibilidad pero el jugador la tiene activa (por bypass previo)
-                -- Asegurar que se le retire
+                -- Si la zona no especifica invencibilidad activa, aplicar protección básica contra armas (balas/melee/explosiones)
+                -- para evitar que los maten desde fuera, pero manteniendo vulnerabilidad IC normal (caídas, etc.)
+                SetEntityProofs(ped, true, false, true, false, true, false, false, false)
+                
                 if GetPlayerInvincible(playerId) then
                     SetPlayerInvincible(playerId, false)
                     SetEntityInvincible(ped, false)
                     SetEntityCanBeDamaged(ped, true)
-                    SetEntityProofs(ped, false, false, false, false, false, false, false, false)
-                    SetPedMinHealth(ped, 0)
+                end
+                
+                ResetEntityAlpha(ped)
+                local myVeh = GetVehiclePedIsIn(ped, false)
+                if myVeh ~= 0 then
+                    ResetEntityAlpha(myVeh)
                 end
             end
             
@@ -199,7 +230,7 @@ CreateThread(function()
                 if rules.invincibleVehicles then
                     SetEntityInvincible(vehicle, true)
                     SetEntityCanBeDamaged(vehicle, false)
-                    SetVehicleProofs(vehicle, true, true, true, true, true, true, true, true)
+                    SetEntityProofs(vehicle, true, true, true, true, true, true, true, true)
                     SetVehicleTyresCanBurst(vehicle, false)
                     SetVehicleBodyHealth(vehicle, 1000.0)
                     SetVehicleEngineHealth(vehicle, 1000.0)

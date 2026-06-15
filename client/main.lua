@@ -40,6 +40,9 @@ function ResolveActiveSafeZone()
             RestoreWeapon()
             UI.ToggleSafeZoneUI(false)
             
+            -- Sincronizar State Bag con el servidor
+            LocalPlayer.state:set('inSafeZone', false, true)
+            
             -- Redundancia de limpieza de invencibilidad y god-modes
             Citizen.SetTimeout(500, function()
                 if not isInsideSafeZone then ForceRemoveRestrictions() end
@@ -92,6 +95,9 @@ function ResolveActiveSafeZone()
     
     -- Actualizar UI
     UI.ToggleSafeZoneUI(true, CurrentSafeZone)
+    
+    -- Sincronizar State Bag con el servidor (activo al estar dentro de cualquier zona segura)
+    LocalPlayer.state:set('inSafeZone', true, true)
 end
 
 function OnPlayerEnterZone(id, zoneData)

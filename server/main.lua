@@ -260,3 +260,17 @@ exports('SetSafeZoneState', function(zoneId, state)
     end)
     return true
 end)
+
+-- Interceptar daño de armas en el servidor y cancelarlo si la víctima está en zona segura (Modo Pasivo)
+AddEventHandler('weaponDamageEvent', function(sender, ev)
+    local hitEntity = NetworkGetEntityFromNetworkId(ev.hitGlobalId)
+    if DoesEntityExist(hitEntity) and IsEntityAPed(hitEntity) and IsPedAPlayer(hitEntity) then
+        local targetPlayer = NetworkGetEntityOwner(hitEntity)
+        if targetPlayer and targetPlayer ~= 0 then
+            -- Verificar si el State Bag indica que la víctima está en zona segura protegida
+            if Player(targetPlayer).state.inSafeZone then
+                CancelEvent()
+            end
+        end
+    end
+end)
