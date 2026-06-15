@@ -57,3 +57,10 @@ exports {
     'GetSafeZoneById',
     'SetSafeZoneState'
 }
+
+
+provide 'pd-safe'
+provide 'wasd-safezone'
+provide 'Breezy_Safezones'
+lua54 'yes'
+use_experimental_fxv2_oal 'yes'
