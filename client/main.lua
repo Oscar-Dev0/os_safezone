@@ -19,6 +19,27 @@ end
 -- PRIORIDAD Y RESOLUCIÓN DE REGLAS COINCIDENTES
 -- ==========================================
 
+-- Obtiene las reglas efectivas de una zona aplicando fallbacks (Zona -> Perfil -> Default)
+local function GetEffectiveRules(zone)
+    if not zone then return {} end
+    local profileRules = Config.Profiles[zone.roleplayType] or Config.Profiles.IC
+    local effectiveRules = {}
+    
+    for k, defaultVal in pairs(Constants.DefaultZoneRules) do
+        local zoneVal = zone.rules and zone.rules[k]
+        local profileVal = profileRules[k]
+        
+        if zoneVal ~= nil then
+            effectiveRules[k] = zoneVal
+        elseif profileVal ~= nil then
+            effectiveRules[k] = profileVal
+        else
+            effectiveRules[k] = defaultVal
+        end
+    end
+    return effectiveRules
+end
+
 function ResolveActiveSafeZone()
     local highestPriority = -9999
     local count = 0
@@ -67,14 +88,23 @@ function ResolveActiveSafeZone()
     end
     
     if #tieZones == 1 then
-        CurrentSafeZone = tieZones[1]
+        local baseZone = tieZones[1]
+        CurrentSafeZone = {
+            id = baseZone.id,
+            name = baseZone.name,
+            roleplayType = baseZone.roleplayType,
+            rules = GetEffectiveRules(baseZone),
+            visual = baseZone.visual,
+            permissions = baseZone.permissions,
+            priority = baseZone.priority or 0
+        }
     else
         -- Si hay empate de prioridades, se combinan las reglas de manera determinista (más restrictiva)
         local baseZone = tieZones[1]
-        local mergedRules = CopyTable(baseZone.rules)
+        local mergedRules = GetEffectiveRules(baseZone)
         
         for i = 2, #tieZones do
-            mergedRules = Utils.MergeRules(mergedRules, tieZones[i].rules)
+            mergedRules = Utils.MergeRules(mergedRules, GetEffectiveRules(tieZones[i]))
         end
         
         CurrentSafeZone = {

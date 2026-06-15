@@ -1,5 +1,6 @@
 local SavedWeaponHash = nil
 local SavedWeaponAmmo = 0
+local LastSafezoneVehicle = nil
 
 -- Guarda y guarda el arma equipada actual
 function SaveAndHideWeapon()
@@ -92,6 +93,16 @@ function ForceRemoveRestrictions()
     SetPedConfigFlag(playerPed, 17, false)
     ResetEntityAlpha(playerPed)
     
+    -- Limpiar State Bags y tracking de vehículos de no colisión
+    LocalPlayer.state:set('noCollision', false, true)
+    if LastSafezoneVehicle then
+        if DoesEntityExist(LastSafezoneVehicle) then
+            Entity(LastSafezoneVehicle).state:set('noCollision', false, true)
+            ResetEntityAlpha(LastSafezoneVehicle)
+        end
+        LastSafezoneVehicle = nil
+    end
+    
     -- Reestablecer límites de velocidad de vehículos
     local vehicle = GetVehiclePedIsIn(playerPed, false)
     if vehicle ~= 0 then
@@ -101,6 +112,7 @@ function ForceRemoveRestrictions()
         SetEntityProofs(vehicle, false, false, false, false, false, false, false, false)
         SetVehicleTyresCanBurst(vehicle, true)
         ResetEntityAlpha(vehicle)
+        Entity(vehicle).state:set('noCollision', false, true)
     end
     
     -- Reestablecer disparos
@@ -120,6 +132,13 @@ CreateThread(function()
             local ped = PlayerPedId()
             local playerId = PlayerId()
             local rules = CurrentSafeZone.rules
+            local myVeh = GetVehiclePedIsIn(ped, false)
+            
+            -- Calcular alfa
+            local alphaVal = 255
+            if rules.passiveAlpha then
+                alphaVal = math.max(0, math.min(255, math.floor(tonumber(rules.passiveAlpha) or 255)))
+            end
             
             -- 1. Regla: Invencibilidad de Jugador (Modo Pasivo GTA Online)
             if rules.invinciblePlayers then
@@ -128,30 +147,6 @@ CreateThread(function()
                 SetEntityCanBeDamaged(ped, false)
                 SetEntityProofs(ped, true, true, true, true, true, true, true, true)
                 SetEntityHealth(ped, GetEntityMaxHealth(ped))
-                SetEntityAlpha(ped, 150, false)
-                
-                -- Deshabilitar colisiones con otros jugadores
-                local activePlayers = GetActivePlayers()
-                for i = 1, #activePlayers do
-                    local player = activePlayers[i]
-                    local targetPed = GetPlayerPed(player)
-                    if targetPed ~= 0 and targetPed ~= ped then
-                        SetEntityNoCollisionEntity(ped, targetPed, true)
-                        
-                        -- Colisiones de vehículos entre jugadores
-                        local myVeh = GetVehiclePedIsIn(ped, false)
-                        local targetVeh = GetVehiclePedIsIn(targetPed, false)
-                        if myVeh ~= 0 and targetVeh ~= 0 and myVeh ~= targetVeh then
-                            SetEntityNoCollisionEntity(myVeh, targetVeh, true)
-                        end
-                    end
-                end
-                
-                -- Efecto fantasma en vehículo propio
-                local myVeh = GetVehiclePedIsIn(ped, false)
-                if myVeh ~= 0 then
-                    SetEntityAlpha(myVeh, 150, false)
-                end
                 
                 if not GetPlayerInvincible(playerId) then
                     SetPedCanRagdoll(ped, false)
@@ -167,10 +162,45 @@ CreateThread(function()
                     SetEntityInvincible(ped, false)
                     SetEntityCanBeDamaged(ped, true)
                 end
+            end
+            
+            -- Aplicar transparencia (alfa) y registrar no colisión si está activado el modo pasivo o sin colisiones
+            if rules.invinciblePlayers or rules.disableCollisions then
+                SetEntityAlpha(ped, alphaVal, false)
+                LocalPlayer.state:set('noCollision', true, true)
                 
-                ResetEntityAlpha(ped)
-                local myVeh = GetVehiclePedIsIn(ped, false)
                 if myVeh ~= 0 then
+                    if LastSafezoneVehicle and LastSafezoneVehicle ~= myVeh then
+                        if DoesEntityExist(LastSafezoneVehicle) then
+                            Entity(LastSafezoneVehicle).state:set('noCollision', false, true)
+                            ResetEntityAlpha(LastSafezoneVehicle)
+                        end
+                    end
+                    LastSafezoneVehicle = myVeh
+                    Entity(myVeh).state:set('noCollision', true, true)
+                    SetEntityAlpha(myVeh, alphaVal, false)
+                else
+                    if LastSafezoneVehicle then
+                        if DoesEntityExist(LastSafezoneVehicle) then
+                            Entity(LastSafezoneVehicle).state:set('noCollision', false, true)
+                            ResetEntityAlpha(LastSafezoneVehicle)
+                        end
+                        LastSafezoneVehicle = nil
+                    end
+                end
+            else
+                ResetEntityAlpha(ped)
+                LocalPlayer.state:set('noCollision', false, true)
+                
+                if LastSafezoneVehicle then
+                    if DoesEntityExist(LastSafezoneVehicle) then
+                        Entity(LastSafezoneVehicle).state:set('noCollision', false, true)
+                        ResetEntityAlpha(LastSafezoneVehicle)
+                    end
+                    LastSafezoneVehicle = nil
+                end
+                if myVeh ~= 0 then
+                    Entity(myVeh).state:set('noCollision', false, true)
                     ResetEntityAlpha(myVeh)
                 end
             end
@@ -236,16 +266,7 @@ CreateThread(function()
                     SetVehicleEngineHealth(vehicle, 1000.0)
                 end
                 
-                -- 7. Regla: Sin colisiones de vehículos (Anti-Raming)
-                if rules.disableCollisions then
-                    local pool = GetGamePool('CVehicle')
-                    for i = 1, #pool do
-                        local otherVeh = pool[i]
-                        if otherVeh ~= vehicle then
-                            SetEntityNoCollisionEntity(vehicle, otherVeh, true)
-                        end
-                    end
-                end
+                -- 7. Regla: Sin colisiones de vehículos (Anti-Raming) - Manejado globalmente por el hilo de fondo
                 
                 -- 8. Regla: Velocidad máxima
                 if rules.maxVehicleSpeed and rules.maxVehicleSpeed > 0 then
@@ -310,5 +331,60 @@ AddEventHandler('gameEventTriggered', function(name, args)
                 ResetPedVisibleDamage(victim)
             end
         end
+    end
+end)
+
+-- Hilo de resolución de colisiones en segundo plano basado en State Bags
+CreateThread(function()
+    while true do
+        local sleep = 500
+        local myPed = PlayerPedId()
+        local myVeh = GetVehiclePedIsIn(myPed, false)
+        local isLocalNoCollision = LocalPlayer.state.noCollision
+        
+        -- Loop active players to disable collision if they (or we) have noCollision
+        local activePlayers = GetActivePlayers()
+        for i = 1, #activePlayers do
+            local player = activePlayers[i]
+            if player ~= PlayerId() then
+                local targetPed = GetPlayerPed(player)
+                if targetPed ~= 0 then
+                    local serverId = GetPlayerServerId(player)
+                    if isLocalNoCollision or Player(serverId).state.noCollision then
+                        sleep = 0
+                        SetEntityNoCollisionEntity(myPed, targetPed, true)
+                        if myVeh ~= 0 then
+                            SetEntityNoCollisionEntity(myVeh, targetPed, true)
+                        end
+                        
+                        -- Deshabilitar colisión también si el target está en un vehículo
+                        local targetVeh = GetVehiclePedIsIn(targetPed, false)
+                        if targetVeh ~= 0 then
+                            SetEntityNoCollisionEntity(myPed, targetVeh, true)
+                            if myVeh ~= 0 and myVeh ~= targetVeh then
+                                SetEntityNoCollisionEntity(myVeh, targetVeh, true)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Loop vehicles in pool to disable collision if they (or we) have noCollision
+        local vehicles = GetGamePool('CVehicle')
+        for i = 1, #vehicles do
+            local otherVeh = vehicles[i]
+            if otherVeh ~= myVeh then
+                if isLocalNoCollision or Entity(otherVeh).state.noCollision then
+                    sleep = 0
+                    SetEntityNoCollisionEntity(myPed, otherVeh, true)
+                    if myVeh ~= 0 then
+                        SetEntityNoCollisionEntity(myVeh, otherVeh, true)
+                    end
+                end
+            end
+        end
+        
+        Wait(sleep)
     end
 end)

@@ -96,13 +96,17 @@ function Utils.MergeRules(rulesA, rulesB)
                 merged[k] = valA or valB
             end
         elseif type(v) == "number" then
-            -- Para velocidad máxima, tomamos la velocidad más baja configurada (más restrictiva) mayor a 0
-            if valA > 0 and valB > 0 then
-                merged[k] = math.min(valA, valB)
-            elseif valA > 0 then
-                merged[k] = valA
+            if k == "passiveAlpha" then
+                merged[k] = math.min(valA or 255, valB or 255)
             else
-                merged[k] = valB
+                -- Para velocidad máxima, tomamos la velocidad más baja configurada (más restrictiva) mayor a 0
+                if valA > 0 and valB > 0 then
+                    merged[k] = math.min(valA, valB)
+                elseif valA > 0 then
+                    merged[k] = valA
+                else
+                    merged[k] = valB
+                end
             end
         else
             merged[k] = valA

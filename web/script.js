@@ -17,7 +17,8 @@ const RULE_DEFINITIONS = {
     blockHandcuffs: { label: "Bloquear esposas", desc: "Previene esposar al jugador" },
     blockKidnap: { label: "Bloquear secuestros", desc: "Previene cargar/secuestrar" },
     blockInventory: { label: "Bloquear inventario", desc: "Previene abrir inventarios" },
-    disableRoleplayActions: { label: "Bloquear acciones de Rol", desc: "Restringe esposas, cacheos y secuestros" }
+    disableRoleplayActions: { label: "Bloquear acciones de Rol", desc: "Restringe esposas, cacheos y secuestros" },
+    passiveAlpha: { label: "Opacidad Pasiva (0-255)", desc: "Transparencia del jugador y vehículo" }
 };
 
 let activeZonesList = {};
@@ -399,17 +400,19 @@ function OpenZoneForEdit(id) {
         const currentVal = activeRules[key] !== undefined ? activeRules[key] : false;
         
         let controlHtml = '';
-        if (typeof currentVal === 'boolean') {
+        const isNumberRule = (key === 'maxVehicleSpeed' || key === 'passiveAlpha');
+        if (isNumberRule) {
+            const numVal = (typeof currentVal === 'number') ? currentVal : (key === 'passiveAlpha' ? 255 : 50);
+            controlHtml = `
+                <input type="number" class="rule-number-input" data-key="${key}" value="${numVal}" style="width: 80px; padding: 6px; font-size:12px;">
+            `;
+        } else {
             const checked = currentVal ? 'checked' : '';
             controlHtml = `
                 <label class="switch-label">
                     <input type="checkbox" class="rule-checkbox-btn" data-key="${key}" ${checked}>
                     <span class="slider"></span>
                 </label>
-            `;
-        } else if (typeof currentVal === 'number') {
-            controlHtml = `
-                <input type="number" class="rule-number-input" data-key="${key}" value="${currentVal}" style="width: 80px; padding: 6px; font-size:12px;">
             `;
         }
         

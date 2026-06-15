@@ -87,6 +87,9 @@ local function ValidateZonePayload(zoneData)
     if zoneData.rules.maxVehicleSpeed and type(zoneData.rules.maxVehicleSpeed) ~= "number" then
         return false, "Regla de velocidad máxima debe ser un número"
     end
+    if zoneData.rules.passiveAlpha and type(zoneData.rules.passiveAlpha) ~= "number" then
+        return false, "La opacidad pasiva debe ser un número"
+    end
     
     return true, nil
 end
