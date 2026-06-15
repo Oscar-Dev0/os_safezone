@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS `os_safezones` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `zone_type` VARCHAR(20) NOT NULL,
+    `roleplay_type` VARCHAR(20) NOT NULL DEFAULT 'IC',
+    `coords` LONGTEXT NOT NULL,
+    `dimensions` LONGTEXT NULL,
+    `points` LONGTEXT NULL,
+    `rules` LONGTEXT NOT NULL,
+    `visual` LONGTEXT NULL,
+    `permissions` LONGTEXT NULL,
+    `schedule` LONGTEXT NULL,
+    `enabled` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_by` VARCHAR(100) NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
