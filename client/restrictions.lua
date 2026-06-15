@@ -97,6 +97,8 @@ function ForceRemoveRestrictions()
         SetEntityMaxSpeed(vehicle, 1000.0) -- Quitar límite de velocidad
         SetEntityCanBeDamaged(vehicle, true)
         SetEntityInvincible(vehicle, false)
+        SetVehicleProofs(vehicle, false, false, false, false, false, false, false, false)
+        SetVehicleTyresCanBurst(vehicle, true)
     end
     
     -- Reestablecer disparos
@@ -119,10 +121,14 @@ CreateThread(function()
             
             -- 1. Regla: Invencibilidad de Jugador
             if rules.invinciblePlayers then
+                SetPlayerInvincible(playerId, true)
+                SetEntityInvincible(ped, true)
+                SetEntityCanBeDamaged(ped, false)
+                SetEntityProofs(ped, true, true, true, true, true, true, true, true)
+                SetPedMinHealth(ped, 100)
+                SetEntityHealth(ped, GetEntityMaxHealth(ped))
+                
                 if not GetPlayerInvincible(playerId) then
-                    SetPlayerInvincible(playerId, true)
-                    SetEntityInvincible(ped, true)
-                    SetEntityCanBeDamaged(ped, false)
                     SetPedCanRagdoll(ped, false)
                     SetPedConfigFlag(ped, 17, true)
                 end
@@ -133,6 +139,8 @@ CreateThread(function()
                     SetPlayerInvincible(playerId, false)
                     SetEntityInvincible(ped, false)
                     SetEntityCanBeDamaged(ped, true)
+                    SetEntityProofs(ped, false, false, false, false, false, false, false, false)
+                    SetPedMinHealth(ped, 0)
                 end
             end
             
@@ -191,6 +199,10 @@ CreateThread(function()
                 if rules.invincibleVehicles then
                     SetEntityInvincible(vehicle, true)
                     SetEntityCanBeDamaged(vehicle, false)
+                    SetVehicleProofs(vehicle, true, true, true, true, true, true, true, true)
+                    SetVehicleTyresCanBurst(vehicle, false)
+                    SetVehicleBodyHealth(vehicle, 1000.0)
+                    SetVehicleEngineHealth(vehicle, 1000.0)
                 end
                 
                 -- 7. Regla: Sin colisiones de vehículos (Anti-Raming)
@@ -249,5 +261,23 @@ CreateThread(function()
         end
         
         Wait(sleep)
+    end
+end)
+
+-- Red de seguridad absoluta para evitar daño por desincronización o disparos desde fuera de la zona (OneSync)
+AddEventHandler('gameEventTriggered', function(name, args)
+    if name == 'CEventNetworkEntityDamage' then
+        local victim = args[1]
+        
+        if victim == PlayerPedId() and isInsideSafeZone then
+            if CurrentSafeZone and CurrentSafeZone.rules and CurrentSafeZone.rules.invinciblePlayers then
+                -- Restaurar salud inmediatamente al máximo para contrarrestar daño sincronizado de armas de fuego
+                local maxHealth = GetEntityMaxHealth(victim)
+                SetEntityHealth(victim, maxHealth)
+                -- Limpiar marcas de sangre y heridas visuales en la ropa/cuerpo
+                ClearPedLastDamageEntity(victim)
+                ResetPedVisibleDamage(victim)
+            end
+        end
     end
 end)
