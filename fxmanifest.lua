@@ -3,7 +3,7 @@ game 'gta5'
 
 author 'Oscar Dev'
 description 'Sistema avanzado de zonas seguras modular, configurable y persistente'
-version '3.0.0'
+version '3.1.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
@@ -61,7 +61,6 @@ exports {
     'GetSafeZoneById',
     'SetSafeZoneState'
 }
-
 
 
 

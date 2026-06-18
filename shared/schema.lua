@@ -15,6 +15,28 @@ local function clamp(value, minimum, maximum)
     return math.max(minimum, math.min(maximum, value))
 end
 
+local function normalizePoint(point)
+    local pointType = type(point)
+
+    -- FiveM devuelve `vector2`/`vector3` como tipos propios, no como table.
+    -- También aceptamos tablas JSON con claves x/y o índices 1/2.
+    if pointType == 'vector2' or pointType == 'vector3' then
+        return {
+            x = finiteNumber(point.x, nil),
+            y = finiteNumber(point.y, nil)
+        }
+    end
+
+    if pointType == 'table' then
+        return {
+            x = finiteNumber(point.x or point[1], nil),
+            y = finiteNumber(point.y or point[2], nil)
+        }
+    end
+
+    return nil
+end
+
 function SafeZoneSchema.DeepCopy(value, seen)
     if type(value) ~= 'table' then return value end
     seen = seen or {}
@@ -127,11 +149,15 @@ function SafeZoneSchema.Normalize(raw, existingId)
         zone.dimensions.maxZ = finiteNumber(zone.dimensions.maxZ, zone.coords.z + 10.0)
         for index, point in ipairs(type(raw.points) == 'table' and raw.points or {}) do
             if index > ((Config.ZoneLimits and Config.ZoneLimits.MaxPolygonPoints) or 64) then break end
-            if type(point) == 'table' then
-                zone.points[#zone.points + 1] = {
-                    x = finiteNumber(point.x or point[1], 0.0),
-                    y = finiteNumber(point.y or point[2], 0.0)
-                }
+
+            local normalizedPoint = normalizePoint(point)
+            if normalizedPoint and normalizedPoint.x and normalizedPoint.y then
+                zone.points[#zone.points + 1] = normalizedPoint
+            else
+                Utils.LogError(('Punto inválido ignorado en zona %s, índice %s.'):format(
+                    tostring(existingId or raw.id or '?'),
+                    tostring(index)
+                ))
             end
         end
     end

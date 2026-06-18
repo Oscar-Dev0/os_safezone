@@ -29,7 +29,9 @@ function Utils.SafeDecode(value)
         return {}
     end
     
-    return Utils.ReconstructVectors(decoded)
+    -- Mantener estructuras JSON como tablas evita convertir puntos de polígonos
+    -- en vector2 antes de que el esquema pueda validarlos y serializarlos.
+    return decoded
 end
 
 -- Codificación JSON segura

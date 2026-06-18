@@ -36,3 +36,9 @@ Config.Sync.FullResyncIntervalMs = 300000
 Config.Sync.MaxZones = 500
 Config.ZoneLimits.MaxPolygonPoints = 64
 ```
+
+
+## 3.1.0
+- Corregida la carga de polígonos guardados como JSON: ahora acepta tablas, vector2 y vector3.
+- `SafeDecode` conserva los arreglos JSON como tablas para evitar pérdida de puntos.
+- La interfaz usa una paleta monocromática negra, blanca y gris.
