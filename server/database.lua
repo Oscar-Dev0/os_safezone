@@ -1,7 +1,7 @@
 Database = {}
 
 -- Inicialización y creación de tabla si no existe
-function Database.Initialize()
+function Database.Initialize(callback)
     local sql = [[
         CREATE TABLE IF NOT EXISTS `os_safezones` (
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -15,6 +15,7 @@ function Database.Initialize()
             `visual` LONGTEXT NULL,
             `permissions` LONGTEXT NULL,
             `schedule` LONGTEXT NULL,
+            `priority` INT NOT NULL DEFAULT 0,
             `enabled` TINYINT(1) NOT NULL DEFAULT 1,
             `created_by` VARCHAR(100) NULL,
             `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -26,6 +27,9 @@ function Database.Initialize()
     MySQL.ready(function()
         MySQL.query(sql, {}, function(result)
             Utils.LogInfo("Base de datos inicializada y lista.")
+            MySQL.query("ALTER TABLE `os_safezones` ADD COLUMN IF NOT EXISTS `priority` INT NOT NULL DEFAULT 0", {}, function()
+                if callback then callback(true) end
+            end)
         end)
     end)
 end
@@ -55,6 +59,7 @@ function Database.GetAllZones(callback)
                 visual = Utils.SafeDecode(row.visual),
                 permissions = Utils.SafeDecode(row.permissions),
                 schedule = Utils.SafeDecode(row.schedule),
+                priority = tonumber(row.priority) or 0,
                 enabled = row.enabled == 1 or row.enabled == true,
                 createdBy = row.created_by
             }
@@ -311,8 +316,8 @@ function Database.AutoInjectDefaultZones(callback)
     
     local query = [[
         INSERT INTO os_safezones 
-        (name, zone_type, roleplay_type, coords, dimensions, points, rules, visual, permissions, schedule, enabled, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (name, zone_type, roleplay_type, coords, dimensions, points, rules, visual, permissions, schedule, priority, enabled, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ]]
     
     local total = #defaultZones
@@ -330,6 +335,7 @@ function Database.AutoInjectDefaultZones(callback)
             Utils.SafeEncode(z.visual),
             Utils.SafeEncode(z.permissions),
             Utils.SafeEncode(z.schedule),
+            tonumber(z.priority) or 0,
             z.enabled and 1 or 0,
             z.createdBy
         }
@@ -347,8 +353,8 @@ end
 function Database.InsertZone(zoneData, callback)
     local query = [[
         INSERT INTO os_safezones 
-        (name, zone_type, roleplay_type, coords, dimensions, points, rules, visual, permissions, schedule, enabled, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (name, zone_type, roleplay_type, coords, dimensions, points, rules, visual, permissions, schedule, priority, enabled, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ]]
     
     local params = {
@@ -362,6 +368,7 @@ function Database.InsertZone(zoneData, callback)
         Utils.SafeEncode(zoneData.visual),
         Utils.SafeEncode(zoneData.permissions),
         Utils.SafeEncode(zoneData.schedule),
+        tonumber(zoneData.priority) or 0,
         zoneData.enabled and 1 or 0,
         zoneData.createdBy
     }
@@ -381,7 +388,7 @@ function Database.UpdateZone(zoneId, zoneData, callback)
     local query = [[
         UPDATE os_safezones SET 
         name = ?, zone_type = ?, roleplay_type = ?, coords = ?, dimensions = ?, 
-        points = ?, rules = ?, visual = ?, permissions = ?, schedule = ?, enabled = ?
+        points = ?, rules = ?, visual = ?, permissions = ?, schedule = ?, priority = ?, enabled = ?
         WHERE id = ?
     ]]
     
@@ -396,6 +403,7 @@ function Database.UpdateZone(zoneId, zoneData, callback)
         Utils.SafeEncode(zoneData.visual),
         Utils.SafeEncode(zoneData.permissions),
         Utils.SafeEncode(zoneData.schedule),
+        tonumber(zoneData.priority) or 0,
         zoneData.enabled and 1 or 0,
         zoneId
     }

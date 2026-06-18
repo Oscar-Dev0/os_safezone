@@ -1,519 +1,288 @@
-// Nombres de las reglas para renderizar switches en el editor
+const RESOURCE = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'os_safezone';
+
 const RULE_DEFINITIONS = {
-    disableWeapons: { label: "Desarmar al entrar", desc: "Guarda las armas automáticamente" },
-    disableFiring: { label: "Bloquear disparos", desc: "Deshabilita el disparo de armas" },
-    disableMelee: { label: "Bloquear combate cuerpo a cuerpo", desc: "Previene golpes físicos" },
-    disableDriveBy: { label: "Bloquear driveby", desc: "Deshabilita disparos de autos" },
-    disableVehicleDamage: { label: "Vehículos indestructibles", desc: "Previene daño a vehículos" },
-    invinciblePlayers: { label: "Jugadores invencibles", desc: "El jugador no recibe daño" },
-    invincibleVehicles: { label: "Vehículos invencibles", desc: "El vehículo no recibe daño" },
-    disableCollisions: { label: "Sin colisiones", desc: "Evita choques entre vehículos" },
-    maxVehicleSpeed: { label: "Velocidad máxima", desc: "Límite de velocidad en km/h" },
-    allowEmergencyWeapons: { label: "Bypass servicios emergencia", desc: "Policías pueden portar armas" },
-    hideWeaponOnEnter: { label: "Guardar arma al entrar", desc: "Oculta el arma al ingresar" },
-    restoreWeaponOnExit: { label: "Restaurar arma al salir", desc: "Equipa el arma anterior al salir" },
-    blockVehicleTheft: { label: "Bloquear robo de vehículos", desc: "Previene robar autos de otros" },
-    blockFrisk: { label: "Bloquear cacheos", desc: "Previene cachear al jugador" },
-    blockHandcuffs: { label: "Bloquear esposas", desc: "Previene esposar al jugador" },
-    blockKidnap: { label: "Bloquear secuestros", desc: "Previene cargar/secuestrar" },
-    blockInventory: { label: "Bloquear inventario", desc: "Previene abrir inventarios" },
-    disableRoleplayActions: { label: "Bloquear acciones de Rol", desc: "Restringe esposas, cacheos y secuestros" },
-    passiveAlpha: { label: "Opacidad Pasiva (0-255)", desc: "Transparencia del jugador y vehículo" }
+  disableWeapons: ['Desarmar al entrar', 'Guarda y bloquea las armas'],
+  disableFiring: ['Bloquear disparos', 'Impide cualquier disparo'],
+  disableMelee: ['Bloquear melee', 'Deshabilita golpes y patadas'],
+  disableDriveBy: ['Bloquear drive-by', 'Impide disparar desde vehículos'],
+  disableVehicleDamage: ['Proteger vehículos', 'Reduce o bloquea daños'],
+  invinciblePlayers: ['Jugadores invencibles', 'Evita daño al jugador'],
+  invincibleVehicles: ['Vehículos invencibles', 'Evita daño al vehículo'],
+  disableCollisions: ['Sin colisiones', 'Evita choques en la zona'],
+  maxVehicleSpeed: ['Velocidad máxima', 'Límite en km/h'],
+  allowEmergencyWeapons: ['Armas de emergencia', 'Permite bypass a servicios'],
+  hideWeaponOnEnter: ['Ocultar arma', 'Guarda el arma al entrar'],
+  restoreWeaponOnExit: ['Restaurar arma', 'Recupera el arma al salir'],
+  blockVehicleTheft: ['Bloquear robo', 'Impide robar vehículos'],
+  blockFrisk: ['Bloquear cacheos', 'Impide revisar jugadores'],
+  blockHandcuffs: ['Bloquear esposas', 'Impide esposar'],
+  blockKidnap: ['Bloquear secuestro', 'Impide cargar o secuestrar'],
+  blockInventory: ['Bloquear inventario', 'Impide abrir inventarios'],
+  disableRoleplayActions: ['Bloquear acciones RP', 'Restringe acciones de rol']
 };
 
-let activeZonesList = {};
-let currentEditingZone = null;
-let currentFramework = "standalone";
+let zones = [];
+let editingZone = null;
+let pendingDeleteId = null;
+let tabletOpen = false;
 
-function GetZoneById(zoneId) {
-    zoneId = parseInt(zoneId);
-    for (const [_, zone] of Object.entries(activeZonesList)) {
-        if (zone && zone.id === zoneId) {
-            return zone;
-        }
-    }
-    return null;
+const $ = (id) => document.getElementById(id);
+const clone = (value) => JSON.parse(JSON.stringify(value));
+const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+async function post(endpoint, payload = {}) {
+  try {
+    const response = await fetch(`https://${RESOURCE}/${endpoint}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json; charset=UTF-8'},
+      body: JSON.stringify(payload)
+    });
+    const text = await response.text();
+    try { return text ? JSON.parse(text) : {ok: true}; }
+    catch { return {ok: response.ok, raw: text}; }
+  } catch (error) {
+    toast(`No se pudo comunicar con el recurso: ${error.message}`, 'error');
+    return {ok: false, error: error.message};
+  }
 }
 
-// ==========================================
-// ESCUCHADOR DE MENSAJES NUI DE CLIENTE
-// ==========================================
-window.addEventListener('message', function(event) {
-    const data = event.data;
-    
-    // 1. Mostrar/Ocultar HUD Inferior
-    if (data.action === "showSafezone") {
-        const container = document.getElementById('safezone-container');
-        const card = document.getElementById('safezone-card');
-        const zoneName = document.getElementById('zone-name');
-        const tag = document.getElementById('zone-tag');
-        
-        if (data.state) {
-            zoneName.textContent = data.zoneName;
-            tag.textContent = data.roleplayType;
-            
-            card.className = '';
-            card.classList.add('type-' + data.roleplayType.toLowerCase());
-            
-            const rules = data.rules || {};
-            document.getElementById('badge-weapons').style.display = rules.disableWeapons ? 'flex' : 'none';
-            document.getElementById('badge-melee').style.display = rules.disableMelee ? 'flex' : 'none';
-            document.getElementById('badge-god').style.display = rules.invinciblePlayers ? 'flex' : 'none';
-            
-            const badgeSpeed = document.getElementById('badge-speed');
-            if (rules.maxVehicleSpeed && rules.maxVehicleSpeed > 0) {
-                badgeSpeed.style.display = 'flex';
-                document.getElementById('speed-limit-text').textContent = Math.round(rules.maxVehicleSpeed) + ' km/h';
-            } else {
-                badgeSpeed.style.display = 'none';
-            }
-            
-            container.classList.remove('hide');
-        } else {
-            container.classList.add('hide');
-        }
-    }
-    
-    // 2. Abrir Tablet de Administración
-    if (data.action === "openTablet") {
-        activeZonesList = data.zones || [];
-        currentFramework = data.framework || "standalone";
-        
-        document.getElementById('settings-framework').textContent = currentFramework.toUpperCase();
-        document.getElementById('settings-debug').textContent = data.debug ? "Activo" : "Desactivado";
-        document.getElementById('settings-locale').textContent = data.locale || "es";
-        
-        RenderZonesList();
-        switchTab('manage-tab');
-        
-        document.getElementById('admin-tablet').classList.remove('hide-tablet');
-    }
-    
-    // 3. Sincronizar zonas en tiempo real
-    if (data.action === "updateZones") {
-        activeZonesList = data.zones || [];
-        RenderZonesList();
-        
-        if (currentEditingZone) {
-            const updated = GetZoneById(currentEditingZone.id);
-            if (updated) {
-                currentEditingZone = updated;
-            }
-        }
-    }
-});
-
-// ==========================================
-// CONTROLES DE LA TABLET (NAVEGACIÓN)
-// ==========================================
-
-// Cambiar de pestaña en la tablet
-function switchTab(tabId) {
-    // Desactivar pestañas actuales
-    document.querySelectorAll('.tab-pane').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
-    
-    // Activar pestaña elegida
-    const targetPane = document.getElementById(tabId);
-    if (targetPane) targetPane.classList.add('active');
-    
-    const menuItem = document.querySelector(`.menu-item[data-tab="${tabId}"]`);
-    if (menuItem) menuItem.classList.add('active');
-    
-    // Cambiar títulos superiores
-    const title = document.getElementById('tab-title');
-    const subtitle = document.getElementById('tab-subtitle');
-    
-    if (tabId === 'manage-tab') {
-        title.textContent = "Gestionar Zonas";
-        subtitle.textContent = "Ver, editar y eliminar zonas seguras del servidor";
-    } else if (tabId === 'create-tab') {
-        title.textContent = "Crear Nueva Zona";
-        subtitle.textContent = "Configurar un área segura con reglas heredadas o manuales";
-        renderDimensionInputs(); // Cargar inputs de dimensiones correctos
-    } else if (tabId === 'settings-tab') {
-        title.textContent = "Ajustes";
-        subtitle.textContent = "Detalles y estado global del recurso safezones";
-    } else if (tabId === 'edit-tab') {
-        title.textContent = "Editor de Zona";
-        subtitle.textContent = "Modificar las reglas y visualización de forma individual";
-    }
+function toast(message, type = 'success') {
+  const item = document.createElement('div');
+  item.className = `toast ${type}`;
+  item.textContent = message;
+  $('toast-stack').appendChild(item);
+  setTimeout(() => item.remove(), 3800);
 }
 
-// Event Listeners para el menú
-document.querySelectorAll('.menu-item').forEach(item => {
-    item.addEventListener('click', function() {
-        const tab = this.getAttribute('data-tab');
-        switchTab(tab);
-    });
-});
+function updateClock() {
+  $('tablet-clock').textContent = new Date().toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit'});
+}
+setInterval(updateClock, 1000); updateClock();
 
-// Cerrar panel
-document.getElementById('close-tablet-btn').addEventListener('click', function() {
-    document.getElementById('admin-tablet').classList.add('hide-tablet');
-    fetch(`https://${GetParentResourceName()}/closeTablet`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    });
-});
-
-// Escuchar tecla ESC para cerrar
-window.addEventListener('keydown', function(event) {
-    if (event.key === "Escape" || event.keyCode === 27) {
-        document.getElementById('admin-tablet').classList.add('hide-tablet');
-        fetch(`https://${GetParentResourceName()}/closeTablet`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
-});
-
-// ==========================================
-// RENDERIZADO Y GESTIÓN DE LA LISTA DE ZONAS
-// ==========================================
-
-function RenderZonesList() {
-    const container = document.getElementById('zones-list-container');
-    container.innerHTML = '';
-    
-    const searchVal = document.getElementById('zone-search').value.toLowerCase();
-    
-    for (const [_, zone] of Object.entries(activeZonesList)) {
-        if (!zone) continue; // Seguridad ante arrays sparse de FiveM
-        
-        if (searchVal && !zone.name.toLowerCase().includes(searchVal) && !String(zone.id).includes(searchVal)) {
-            continue;
-        }
-        
-        const card = document.createElement('div');
-        card.className = 'zone-item-card';
-        
-        const enabledCheck = zone.enabled ? 'checked' : '';
-        
-        card.innerHTML = `
-            <div class="zone-card-top">
-                <h3>${zone.name}</h3>
-                <span class="zone-type-badge ${zone.roleplayType.toLowerCase()}">${zone.roleplayType}</span>
-            </div>
-            <div class="zone-card-details">
-                <span><strong>ID:</strong> ${zone.id} | <strong>Tipo:</strong> ${zone.zoneType.toUpperCase()}</span>
-                <span><strong>Coords:</strong> X: ${zone.coords.x.toFixed(1)}, Y: ${zone.coords.y.toFixed(1)}, Z: ${zone.coords.z.toFixed(1)}</span>
-            </div>
-            <div class="zone-card-actions">
-                <button class="btn btn-primary btn-edit" data-id="${zone.id}"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
-                <button class="btn btn-secondary btn-tp" data-id="${zone.id}"><i class="fa-solid fa-location-arrow"></i> TP</button>
-                <label class="switch-label">
-                    <input type="checkbox" class="toggle-active-btn" data-id="${zone.id}" ${enabledCheck}>
-                    <span class="slider"></span>
-                </label>
-            </div>
-        `;
-        container.appendChild(card);
-    }
-    
-    // Registrar Eventos de botones
-    container.querySelectorAll('.btn-edit').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            OpenZoneForEdit(id);
-        });
-    });
-    
-    container.querySelectorAll('.btn-tp').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const id = this.getAttribute('data-id');
-            fetch(`https://${GetParentResourceName()}/teleportToZone`, {
-                method: 'POST',
-                body: JSON.stringify({ id: id })
-            });
-        });
-    });
-    
-    container.querySelectorAll('.toggle-active-btn').forEach(check => {
-        check.addEventListener('change', function() {
-            const id = this.getAttribute('data-id');
-            const state = this.checked;
-            
-            // Sincronizar estado local en memoria de la Tablet
-            const zone = GetZoneById(id);
-            if (zone) zone.enabled = state;
-            
-            fetch(`https://${GetParentResourceName()}/toggleZone`, {
-                method: 'POST',
-                body: JSON.stringify({ id: id, state: state })
-            });
-        });
-    });
+function normalizeZones(raw) {
+  const list = Array.isArray(raw) ? raw : Object.values(raw || {});
+  return list.filter(Boolean).map(z => ({...z, id: number(z.id)})).sort((a,b) => a.id - b.id);
 }
 
-// Búsqueda instantánea
-document.getElementById('zone-search').addEventListener('input', RenderZonesList);
+function findZone(id) { return zones.find(z => z.id === number(id)) || null; }
 
-// ==========================================
-// CREACIÓN DE NUEVA ZONA
-// ==========================================
-
-const typeSelect = document.getElementById('create-zone-type');
-typeSelect.addEventListener('change', renderDimensionInputs);
-
-function renderDimensionInputs() {
-    const type = typeSelect.value;
-    const container = document.getElementById('dimension-inputs-container');
-    container.innerHTML = '';
-    
-    if (type === 'circle') {
-        container.innerHTML = `
-            <label>Radio de la Zona (en metros)</label>
-            <input type="number" id="create-radius" value="30" step="0.5" required>
-        `;
-    } else if (type === 'box') {
-        container.innerHTML = `
-            <div style="display: flex; gap: 10px;">
-                <div style="flex: 1;">
-                    <label>Largo (X)</label>
-                    <input type="number" id="create-size-x" value="20" required>
-                </div>
-                <div style="flex: 1;">
-                    <label>Ancho (Y)</label>
-                    <input type="number" id="create-size-y" value="20" required>
-                </div>
-                <div style="flex: 1;">
-                    <label>Alto (Z)</label>
-                    <input type="number" id="create-size-z" value="15" required>
-                </div>
-            </div>
-        `;
-    } else if (type === 'poly') {
-        container.innerHTML = `
-            <div style="display: flex; gap: 10px;">
-                <div style="flex: 1;">
-                    <label>Altura Min (Z)</label>
-                    <input type="number" id="create-min-z" placeholder="Auto" step="0.1">
-                </div>
-                <div style="flex: 1;">
-                    <label>Altura Max (Z)</label>
-                    <input type="number" id="create-max-z" placeholder="Auto" step="0.1">
-                </div>
-            </div>
-            <p style="font-size: 11px; color: #10b981; margin-top: 5px;"><i class="fa-solid fa-circle-info"></i> Iniciarás la herramienta de dibujado en el mundo al crear.</p>
-        `;
-    }
+function setZoneData(raw) {
+  zones = normalizeZones(raw);
+  $('zone-count').textContent = zones.length;
+  $('settings-zone-count').textContent = zones.length;
+  renderZones();
+  if (editingZone) {
+    const fresh = findZone(editingZone.id);
+    if (fresh) editingZone = clone(fresh);
+    else { editingZone = null; switchTab('manage-tab'); }
+  }
 }
 
-// Enviar formulario para Crear Zona
-document.getElementById('create-zone-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const name = document.getElementById('create-name').value;
-    const zType = document.getElementById('create-zone-type').value;
-    const rpType = document.getElementById('create-rp-type').value;
-    
-    const zoneData = {
-        name: name,
-        zoneType: zType,
-        roleplayType: rpType,
-    };
-    
-    if (zType === 'circle') {
-        zoneData.dimensions = { radius: parseFloat(document.getElementById('create-radius').value) };
-    } else if (zType === 'box') {
-        zoneData.dimensions = {
-            x: parseFloat(document.getElementById('create-size-x').value),
-            y: parseFloat(document.getElementById('create-size-y').value),
-            z: parseFloat(document.getElementById('create-size-z').value)
-        };
-    } else if (zType === 'poly') {
-        zoneData.dimensions = {
-            minZ: parseFloat(document.getElementById('create-min-z').value) || 0.0,
-            maxZ: parseFloat(document.getElementById('create-max-z').value) || 0.0
-        };
-    }
-    
-    if (zType === 'poly') {
-        // Para polígonos, cerrar la tablet y activar el trazador
-        document.getElementById('admin-tablet').classList.add('hide-tablet');
-        fetch(`https://${GetParentResourceName()}/drawPolygon`, {
-            method: 'POST',
-            body: JSON.stringify(zoneData)
-        });
-    } else {
-        // Enviar creación normal (usa la posición del jugador en cliente)
-        fetch(`https://${GetParentResourceName()}/createZone`, {
-            method: 'POST',
-            body: JSON.stringify(zoneData)
-        });
-        
-        // Volver a la lista
-        document.getElementById('create-name').value = '';
-        switchTab('manage-tab');
-    }
-});
-
-// Botón Usar Mi Posición Actual
-document.getElementById('use-my-pos-btn').addEventListener('click', function() {
-    fetch(`https://${GetParentResourceName()}/requestMyPos`, {
-        method: 'POST'
-    });
-});
-
-// ==========================================
-// EDITOR DE ZONA ESPECÍFICA (MODAL)
-// ==========================================
-
-function OpenZoneForEdit(id) {
-    currentEditingZone = GetZoneById(id);
-    if (!currentEditingZone) return;
-    
-    document.getElementById('editing-zone-name').textContent = currentEditingZone.name;
-    document.getElementById('edit-name-input').value = currentEditingZone.name;
-    
-    // Checkboxes visuales
-    document.getElementById('edit-blip-checkbox').checked = currentEditingZone.visual.blip || false;
-    document.getElementById('edit-radius-checkbox').checked = currentEditingZone.visual.radiusBlip || false;
-    document.getElementById('edit-marker-checkbox').checked = currentEditingZone.visual.marker || false;
-    document.getElementById('edit-priority-input').value = currentEditingZone.priority || 0;
-    
-    // Picker de Color
-    const visual = currentEditingZone.visual || {};
-    const color = visual.color || { r: 40, g: 180, b: 90, a: 100 };
-    
-    // Convertir RGB a HEX
-    const rgbToHex = (r, g, b) => '#' + [r, g, b].map(x => {
-        const hex = x.toString(16);
-        return hex.length === 1 ? '0' + hex : hex;
-    }).join('');
-    
-    document.getElementById('edit-color-picker').value = rgbToHex(color.r, color.g, color.b);
-    document.getElementById('edit-color-alpha').value = color.a;
-    document.getElementById('alpha-val').textContent = color.a;
-    
-    // Renderizar switches de reglas
-    const rulesContainer = document.getElementById('edit-rules-container');
-    rulesContainer.innerHTML = '';
-    
-    const activeRules = currentEditingZone.rules || {};
-    
-    for (const [key, def] of Object.entries(RULE_DEFINITIONS)) {
-        const item = document.createElement('div');
-        item.className = 'rule-toggle-item';
-        
-        const currentVal = activeRules[key] !== undefined ? activeRules[key] : false;
-        
-        let controlHtml = '';
-        const isNumberRule = (key === 'maxVehicleSpeed' || key === 'passiveAlpha');
-        if (isNumberRule) {
-            const numVal = (typeof currentVal === 'number') ? currentVal : (key === 'passiveAlpha' ? 255 : 50);
-            controlHtml = `
-                <input type="number" class="rule-number-input" data-key="${key}" value="${numVal}" style="width: 80px; padding: 6px; font-size:12px;">
-            `;
-        } else {
-            const checked = currentVal ? 'checked' : '';
-            controlHtml = `
-                <label class="switch-label">
-                    <input type="checkbox" class="rule-checkbox-btn" data-key="${key}" ${checked}>
-                    <span class="slider"></span>
-                </label>
-            `;
-        }
-        
-        item.innerHTML = `
-            <div class="toggle-info">
-                <span>${def.label}</span>
-                <small>${def.desc}</small>
-            </div>
-            ${controlHtml}
-        `;
-        rulesContainer.appendChild(item);
-    }
-    
-    switchTab('edit-tab');
+function switchTab(id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === id));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+  const labels = {
+    'manage-tab': ['Gestionar zonas', 'Administra, activa, edita o elimina zonas en tiempo real.'],
+    'create-tab': ['Crear zona', 'Crea una zona usando tu posición actual.'],
+    'edit-tab': ['Editor de zona', 'Modifica reglas, apariencia y prioridad.'],
+    'settings-tab': ['Estado del sistema', 'Información de la integración activa.']
+  };
+  const [title, subtitle] = labels[id] || labels['manage-tab'];
+  $('tab-title').textContent = title;
+  $('tab-subtitle').textContent = subtitle;
+  if (id === 'create-tab') renderDimensions();
 }
 
-// Slider de Alfa
-document.getElementById('edit-color-alpha').addEventListener('input', function() {
-    document.getElementById('alpha-val').textContent = this.value;
-});
+function renderZones() {
+  const query = $('zone-search').value.trim().toLowerCase();
+  const filtered = zones.filter(z => {
+    const haystack = `${z.id} ${z.name || ''} ${z.zoneType || ''} ${z.roleplayType || ''}`.toLowerCase();
+    return haystack.includes(query);
+  });
+  const container = $('zones-list-container');
+  container.innerHTML = '';
+  $('empty-zones').classList.toggle('hidden', filtered.length !== 0);
 
-// Botón Volver
-document.getElementById('back-to-list-btn').addEventListener('click', function() {
+  filtered.forEach(zone => {
+    const coords = zone.coords || {};
+    const card = document.createElement('article');
+    card.className = 'zone-card';
+    card.innerHTML = `
+      <div class="zone-card-head"><h3>${esc(zone.name || `Zona ${zone.id}`)}</h3><span class="type">${esc(zone.roleplayType || 'IC')}</span></div>
+      <div class="zone-meta">
+        <div><span>ID / Geometría</span><b>#${zone.id} · ${esc(zone.zoneType || 'circle')}</b></div>
+        <div><span>Prioridad</span><b>${number(zone.priority)}</b></div>
+        <div><span>Coordenada X</span><b>${number(coords.x).toFixed(1)}</b></div>
+        <div><span>Coordenada Y</span><b>${number(coords.y).toFixed(1)}</b></div>
+      </div>
+      <div class="zone-actions">
+        <button class="secondary-btn edit-btn" data-id="${zone.id}">Editar</button>
+        <button class="secondary-btn tp-btn" data-id="${zone.id}">TP</button>
+        <button class="danger-btn quick-delete-btn" data-id="${zone.id}">Eliminar</button>
+        <label class="switch" title="Activar o desactivar"><input class="toggle-btn" data-id="${zone.id}" type="checkbox" ${zone.enabled !== false ? 'checked' : ''}><i></i></label>
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+function renderDimensions() {
+  const type = $('create-zone-type').value;
+  const box = $('dimension-inputs-container');
+  if (type === 'circle') box.innerHTML = '<label class="full"><span>Radio (metros)</span><input id="create-radius" type="number" min="1" max="2000" step="0.5" value="30" required></label>';
+  else if (type === 'box') box.innerHTML = '<label><span>Largo X</span><input id="create-size-x" type="number" min="1" value="20"></label><label><span>Ancho Y</span><input id="create-size-y" type="number" min="1" value="20"></label><label><span>Alto Z</span><input id="create-size-z" type="number" min="1" value="15"></label>';
+  else box.innerHTML = '<label><span>Min Z</span><input id="create-min-z" type="number" step="0.1" placeholder="Auto"></label><label><span>Max Z</span><input id="create-max-z" type="number" step="0.1" placeholder="Auto"></label><div class="full"><span style="color:var(--muted);font-size:10px">Al crear, la tablet se cerrará para dibujar el polígono.</span></div>';
+}
+
+function openEditor(id) {
+  const zone = findZone(id);
+  if (!zone) return toast('La zona ya no existe.', 'error');
+  editingZone = clone(zone);
+  $('editing-zone-name').textContent = editingZone.name || `Zona ${editingZone.id}`;
+  $('edit-name-input').value = editingZone.name || '';
+  $('edit-priority-input').value = number(editingZone.priority);
+  const visual = editingZone.visual || {};
+  $('edit-blip-checkbox').checked = !!visual.blip;
+  $('edit-radius-checkbox').checked = !!visual.radiusBlip;
+  $('edit-marker-checkbox').checked = !!visual.marker;
+  const color = visual.color || {r:40,g:180,b:90,a:100};
+  $('edit-color-picker').value = rgbToHex(color.r, color.g, color.b);
+  $('edit-color-alpha').value = number(color.a, 100);
+  $('alpha-val').textContent = number(color.a, 100);
+  renderRules(editingZone.rules || {});
+  switchTab('edit-tab');
+}
+
+function renderRules(rules) {
+  const container = $('edit-rules-container'); container.innerHTML = '';
+  Object.entries(RULE_DEFINITIONS).forEach(([key, def]) => {
+    const current = rules[key] ?? (key === 'maxVehicleSpeed' ? 0 : false);
+    const row = document.createElement('div'); row.className = 'rule-item';
+    const control = typeof current === 'number'
+      ? `<input class="rule-number" data-rule="${key}" type="number" min="0" step="1" value="${number(current)}">`
+      : `<label class="switch"><input class="rule-toggle" data-rule="${key}" type="checkbox" ${current ? 'checked' : ''}><i></i></label>`;
+    row.innerHTML = `<div class="rule-copy"><b>${def[0]}</b><small>${def[1]}</small></div>${control}`;
+    container.appendChild(row);
+  });
+}
+
+function rgbToHex(r,g,b) { return '#' + [r,g,b].map(v => Math.max(0,Math.min(255,number(v))).toString(16).padStart(2,'0')).join(''); }
+function hexToRgb(hex) { const m = /^#([0-9a-f]{6})$/i.exec(hex); return m ? {r:parseInt(m[1].slice(0,2),16),g:parseInt(m[1].slice(2,4),16),b:parseInt(m[1].slice(4,6),16)} : {r:40,g:180,b:90}; }
+
+function requestDelete(id) {
+  const zone = findZone(id);
+  if (!zone) return toast('La zona ya no existe.', 'error');
+  pendingDeleteId = zone.id;
+  $('confirm-message').textContent = `Se eliminará “${zone.name}” (ID ${zone.id}) de la base de datos. Esta acción no se puede deshacer.`;
+  $('confirm-modal').classList.remove('hidden');
+}
+
+async function closeTablet() {
+  tabletOpen = false;
+  $('admin-tablet').classList.add('hidden');
+  $('admin-tablet').setAttribute('aria-hidden', 'true');
+  $('confirm-modal').classList.add('hidden');
+  await post('closeTablet');
+}
+
+window.addEventListener('message', ({data = {}}) => {
+  if (data.action === 'showSafezone') {
+    const root = $('safezone-container');
+    if (!data.state) return root.classList.add('hidden');
+    $('zone-name').textContent = data.zoneName || 'Zona segura';
+    $('zone-tag').textContent = data.roleplayType || 'IC';
+    $('safezone-card').className = `safezone-card type-${String(data.roleplayType || 'IC').toLowerCase()}`;
+    const rules = data.rules || {};
+    $('badge-weapons').classList.toggle('hidden', !rules.disableWeapons);
+    $('badge-melee').classList.toggle('hidden', !rules.disableMelee);
+    $('badge-god').classList.toggle('hidden', !rules.invinciblePlayers);
+    $('badge-speed').classList.toggle('hidden', !(number(rules.maxVehicleSpeed) > 0));
+    $('speed-limit-text').textContent = `${Math.round(number(rules.maxVehicleSpeed))} km/h`;
+    root.classList.remove('hidden');
+  }
+  if (data.action === 'openTablet') {
+    tabletOpen = true;
+    setZoneData(data.zones);
+    const framework = String(data.framework || 'standalone').toUpperCase();
+    $('settings-framework').textContent = framework;
+    $('settings-framework-card').textContent = framework;
+    $('settings-debug').textContent = data.debug ? 'ACTIVO' : 'DESACTIVADO';
+    $('settings-locale').textContent = data.locale || 'es';
     switchTab('manage-tab');
-});
-
-// Guardar Edición
-document.getElementById('save-zone-btn').addEventListener('click', function() {
-    if (!currentEditingZone) return;
-    
-    const hexToRgb = (hex) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : { r: 40, g: 180, b: 90 };
-    };
-    
-    const hexColor = document.getElementById('edit-color-picker').value;
-    const rgb = hexToRgb(hexColor);
-    const alpha = parseInt(document.getElementById('edit-color-alpha').value);
-    
-    currentEditingZone.name = document.getElementById('edit-name-input').value;
-    currentEditingZone.priority = parseInt(document.getElementById('edit-priority-input').value) || 0;
-    
-    currentEditingZone.visual = {
-        blip: document.getElementById('edit-blip-checkbox').checked,
-        radiusBlip: document.getElementById('edit-radius-checkbox').checked,
-        marker: document.getElementById('edit-marker-checkbox').checked,
-        sprite: currentEditingZone.visual.sprite || 389,
-        scale: currentEditingZone.visual.scale || 0.8,
-        colorIndex: currentEditingZone.visual.colorIndex || 2,
-        color: {
-            r: rgb.r,
-            g: rgb.g,
-            b: rgb.b,
-            a: alpha
-        }
-    };
-    
-    // Guardar reglas editadas
-    const rules = {};
-    document.querySelectorAll('.rule-checkbox-btn').forEach(btn => {
-        const key = btn.getAttribute('data-key');
-        rules[key] = btn.checked;
-    });
-    document.querySelectorAll('.rule-number-input').forEach(input => {
-        const key = input.getAttribute('data-key');
-        rules[key] = parseFloat(input.value);
-    });
-    
-    currentEditingZone.rules = rules;
-    
-    // Enviar al cliente
-    fetch(`https://${GetParentResourceName()}/updateZone`, {
-        method: 'POST',
-        body: JSON.stringify({ id: currentEditingZone.id, data: currentEditingZone })
-    });
-    
-    switchTab('manage-tab');
-});
-
-// Teletransportarse
-document.getElementById('teleport-zone-btn').addEventListener('click', function() {
-    if (!currentEditingZone) return;
-    fetch(`https://${GetParentResourceName()}/teleportToZone`, {
-        method: 'POST',
-        body: JSON.stringify({ id: currentEditingZone.id })
-    });
-});
-
-// Eliminar
-document.getElementById('delete-zone-btn').addEventListener('click', function() {
-    if (!currentEditingZone) return;
-    const confirm = window.confirm("¿Seguro que deseas eliminar esta zona segura de forma permanente?");
-    if (confirm) {
-        fetch(`https://${GetParentResourceName()}/deleteZone`, {
-            method: 'POST',
-            body: JSON.stringify({ id: currentEditingZone.id })
-        });
-        switchTab('manage-tab');
+    $('admin-tablet').classList.remove('hidden');
+    $('admin-tablet').setAttribute('aria-hidden', 'false');
+  }
+  if (data.action === 'updateZones') setZoneData(data.zones);
+  if (data.action === 'operationResult') {
+    toast(data.message || (data.success ? 'Operación completada.' : 'La operación falló.'), data.success ? 'success' : 'error');
+    document.querySelectorAll('button:disabled, input:disabled').forEach(el => el.disabled = false);
+    if (data.success && data.operation === 'delete') {
+      editingZone = null; pendingDeleteId = null; $('confirm-modal').classList.add('hidden'); switchTab('manage-tab');
     }
+  }
 });
+
+document.querySelectorAll('.nav-item').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+$('close-tablet-btn').addEventListener('click', closeTablet);
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && tabletOpen) closeTablet(); });
+$('zone-search').addEventListener('input', renderZones);
+$('refresh-zones-btn').addEventListener('click', async () => { const r = await post('requestRefresh'); if (r?.ok !== false) toast('Sincronización solicitada.', 'info'); });
+$('create-zone-type').addEventListener('change', renderDimensions);
+$('use-my-pos-btn').addEventListener('click', () => post('requestMyPos'));
+$('edit-color-alpha').addEventListener('input', e => $('alpha-val').textContent = e.target.value);
+$('back-to-list-btn').addEventListener('click', () => switchTab('manage-tab'));
+$('teleport-zone-btn').addEventListener('click', () => editingZone && post('teleportToZone', {id: editingZone.id}));
+$('delete-zone-btn').addEventListener('click', () => editingZone && requestDelete(editingZone.id));
+$('confirm-cancel').addEventListener('click', () => { pendingDeleteId = null; $('confirm-modal').classList.add('hidden'); });
+$('confirm-accept').addEventListener('click', async function() {
+  if (!pendingDeleteId) return;
+  this.disabled = true;
+  const result = await post('deleteZone', {id: pendingDeleteId});
+  if (result?.ok === false) { this.disabled = false; toast(result.error || 'Solicitud inválida.', 'error'); }
+});
+
+$('zones-list-container').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const id = number(btn.dataset.id);
+  if (btn.classList.contains('edit-btn')) openEditor(id);
+  else if (btn.classList.contains('tp-btn')) post('teleportToZone', {id});
+  else if (btn.classList.contains('quick-delete-btn')) requestDelete(id);
+});
+$('zones-list-container').addEventListener('change', async e => {
+  if (!e.target.classList.contains('toggle-btn')) return;
+  const input = e.target; input.disabled = true;
+  const result = await post('toggleZone', {id:number(input.dataset.id), state:input.checked});
+  if (result?.ok === false) { input.checked = !input.checked; input.disabled = false; }
+});
+
+$('create-zone-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const submit = e.submitter; if (submit) submit.disabled = true;
+  const type = $('create-zone-type').value;
+  const data = {name:$('create-name').value.trim(), zoneType:type, roleplayType:$('create-rp-type').value};
+  if (!data.name) { if (submit) submit.disabled = false; return toast('Escribe un nombre para la zona.', 'error'); }
+  if (type === 'circle') data.dimensions = {radius:number($('create-radius').value,30)};
+  else if (type === 'box') data.dimensions = {x:number($('create-size-x').value,20),y:number($('create-size-y').value,20),z:number($('create-size-z').value,15)};
+  else data.dimensions = {minZ:number($('create-min-z').value),maxZ:number($('create-max-z').value)};
+  const result = await post(type === 'poly' ? 'drawPolygon' : 'createZone', data);
+  if (result?.ok === false) { if (submit) submit.disabled = false; return toast(result.error || 'No se pudo enviar la zona.', 'error'); }
+  if (type === 'poly') { tabletOpen = false; $('admin-tablet').classList.add('hidden'); }
+  else { $('create-name').value = ''; switchTab('manage-tab'); }
+  setTimeout(() => { if (submit) submit.disabled = false; }, 1200);
+});
+
+$('save-zone-btn').addEventListener('click', async function() {
+  if (!editingZone) return;
+  const name = $('edit-name-input').value.trim(); if (!name) return toast('El nombre no puede estar vacío.', 'error');
+  this.disabled = true;
+  const data = clone(editingZone); data.name = name; data.priority = number($('edit-priority-input').value);
+  const rgb = hexToRgb($('edit-color-picker').value); const oldVisual = data.visual || {};
+  data.visual = {...oldVisual, blip:$('edit-blip-checkbox').checked, radiusBlip:$('edit-radius-checkbox').checked, marker:$('edit-marker-checkbox').checked, color:{...rgb,a:number($('edit-color-alpha').value,100)}};
+  data.rules = {...(data.rules || {})};
+  document.querySelectorAll('.rule-toggle').forEach(input => data.rules[input.dataset.rule] = input.checked);
+  document.querySelectorAll('.rule-number').forEach(input => data.rules[input.dataset.rule] = number(input.value));
+  const result = await post('updateZone', {id:data.id, data});
+  if (result?.ok === false) { this.disabled = false; toast(result.error || 'No se pudo guardar.', 'error'); }
+});
+
+renderDimensions();

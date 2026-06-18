@@ -10,6 +10,9 @@ Config.Debug = false
 -- Comando para abrir el menú de administración (ox_lib)
 Config.AdminCommand = 'safezones'
 
+-- Anti-spam para acciones administrativas enviadas desde NUI.
+Config.AdminRateLimitMs = 750
+
 -- Idioma por defecto. Corresponde a los definidos en shared/locales.lua
 Config.Locale = 'es'
 

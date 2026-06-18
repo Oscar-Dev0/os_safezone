@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `os_safezones` (
     `visual` LONGTEXT NULL,
     `permissions` LONGTEXT NULL,
     `schedule` LONGTEXT NULL,
+    `priority` INT NOT NULL DEFAULT 0,
     `enabled` TINYINT(1) NOT NULL DEFAULT 1,
     `created_by` VARCHAR(100) NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

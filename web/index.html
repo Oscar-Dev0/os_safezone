@@ -1,233 +1,150 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>os_safezone HUD & Panel</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Custom Stylesheet -->
+    <title>OS SafeZone</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 1. HUD INFERIOR (CUANDO EL JUGADOR ESTÁ DENTRO DE UNA ZONA SEGURA) -->
-    <div id="safezone-container" class="hide">
-        <div id="safezone-card" class="type-ic">
-            <div class="card-border-glow"></div>
-            
-            <div class="card-content">
-                <div class="shield-container">
-                    <i id="shield-icon" class="fa-solid fa-shield-halved"></i>
-                </div>
-                
-                <div class="text-container">
-                    <span id="zone-header">ZONA SEGURA <span id="zone-tag">IC</span></span>
-                    <h1 id="zone-name">Cargando...</h1>
-                </div>
-            </div>
-            
-            <div id="rules-badges">
-                <div class="badge" id="badge-weapons"><i class="fa-solid fa-ban-gun"></i> Sin Armas</div>
-                <div class="badge" id="badge-melee"><i class="fa-solid fa-hand-fist"></i> Sin Peleas</div>
-                <div class="badge" id="badge-god"><i class="fa-solid fa-person-shield"></i> Invencible</div>
-                <div class="badge" id="badge-speed"><i class="fa-solid fa-gauge-high"></i> <span id="speed-limit-text">-- km/h</span></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- 2. TABLET DE ADMINISTRACIÓN NUI -->
-    <div id="admin-tablet" class="hide-tablet">
-        <div class="tablet-wrapper">
-            <!-- Barra Lateral (Sidebar) -->
-            <div class="tablet-sidebar">
-                <div class="sidebar-header">
-                    <i class="fa-solid fa-shield-halved"></i>
-                    <span>OS SAFEZONE</span>
-                </div>
-                <ul class="sidebar-menu">
-                    <li class="menu-item active" data-tab="manage-tab"><i class="fa-solid fa-list-check"></i> Gestionar Zonas</li>
-                    <li class="menu-item" data-tab="create-tab"><i class="fa-solid fa-circle-plus"></i> Crear Zona</li>
-                    <li class="menu-item" data-tab="settings-tab"><i class="fa-solid fa-sliders"></i> Ajustes</li>
-                </ul>
-                <div class="sidebar-footer">
-                    <button id="close-tablet-btn"><i class="fa-solid fa-power-off"></i> CERRAR PANEL</button>
-                </div>
-            </div>
-
-            <!-- Contenido Principal -->
-            <div class="tablet-content">
-                <div class="content-header">
-                    <h2 id="tab-title">Gestionar Zonas</h2>
-                    <p id="tab-subtitle">Ver, editar y eliminar zonas seguras del servidor</p>
-                </div>
-
-                <!-- Pestaña: Administrar Zonas -->
-                <div class="tab-pane active" id="manage-tab">
-                    <div class="search-bar">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" id="zone-search" placeholder="Buscar zona por nombre o ID...">
-                    </div>
-                    
-                    <div class="zones-grid" id="zones-list-container">
-                        <!-- Las tarjetas se inyectan dinámicamente aquí -->
-                    </div>
-                </div>
-
-                <!-- Pestaña: Crear Zona -->
-                <div class="tab-pane" id="create-tab">
-                    <form id="create-zone-form" class="tablet-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Nombre de la Zona</label>
-                                <input type="text" id="create-name" placeholder="Ej. Legion Square" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo de Zona</label>
-                                <select id="create-zone-type" required>
-                                    <option value="circle">Círculo (Radio)</option>
-                                    <option value="box">Caja (Cubo)</option>
-                                    <option value="poly">Polígono Personalizado</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Perfil de Rol Base</label>
-                                <select id="create-rp-type" required>
-                                    <option value="IC">IC (In-Character)</option>
-                                    <option value="OOC">OOC (Out-of-Character)</option>
-                                    <option value="MIXED">Mixta (MIXED)</option>
-                                    <option value="CUSTOM">Configuración Manual (CUSTOM)</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="dimension-inputs-container">
-                                <!-- Inputs dinámicos según tipo de zona -->
-                            </div>
-                        </div>
-                        
-                        <div class="form-row actions">
-                            <button type="button" class="btn btn-secondary" id="use-my-pos-btn">
-                                <i class="fa-solid fa-location-crosshairs"></i> Usar Mi Posición Actual
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fa-solid fa-circle-check"></i> Crear Zona
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Pestaña Oculta: Edición de Zona -->
-                <div class="tab-pane" id="edit-tab">
-                    <div class="edit-zone-wrapper">
-                        <div class="edit-header">
-                            <button type="button" class="btn btn-back" id="back-to-list-btn">
-                                <i class="fa-solid fa-arrow-left"></i> Volver a la Lista
-                            </button>
-                            <span class="editing-label">Editando: <strong id="editing-zone-name">Legion Square</strong></span>
-                        </div>
-                        
-                        <div class="edit-sections">
-                            <!-- Sección Izquierda: Toggles de Reglas -->
-                            <div class="rules-section">
-                                <h3>Reglas Activas</h3>
-                                <div class="toggles-grid" id="edit-rules-container">
-                                    <!-- Los switches de reglas se inyectan aquí -->
-                                </div>
-                            </div>
-                            
-                            <!-- Sección Derecha: Configuración Visual y General -->
-                            <div class="config-section">
-                                <h3>Visuales y Acciones</h3>
-                                <div class="form-group">
-                                    <label>Nombre de la Zona</label>
-                                    <input type="text" id="edit-name-input" required>
-                                </div>
-                                
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="switch-label">
-                                            <input type="checkbox" id="edit-blip-checkbox">
-                                            <span class="slider"></span> Mostrar Blip en Mapa
-                                        </label>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="switch-label">
-                                            <input type="checkbox" id="edit-radius-checkbox">
-                                            <span class="slider"></span> Mostrar Radio
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="switch-label">
-                                            <input type="checkbox" id="edit-marker-checkbox">
-                                            <span class="slider"></span> Mostrar Marker 3D
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label>Color de la Zona (Glow & Marker)</label>
-                                    <div class="color-picker-row">
-                                        <input type="color" id="edit-color-picker" value="#28b45a">
-                                        <div class="alpha-container">
-                                            <label>Opacidad</label>
-                                            <input type="range" id="edit-color-alpha" min="0" max="255" value="100">
-                                            <span id="alpha-val">100</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label>Prioridad de la Zona</label>
-                                    <input type="number" id="edit-priority-input" default="0">
-                                </div>
-                                
-                                <div class="actions-stack">
-                                    <button type="button" class="btn btn-primary" id="save-zone-btn">
-                                        <i class="fa-solid fa-floppy-disk"></i> Guardar Cambios
-                                    </button>
-                                    <button type="button" class="btn btn-secondary" id="teleport-zone-btn">
-                                        <i class="fa-solid fa-location-arrow"></i> Teletransportarse
-                                    </button>
-                                    <button type="button" class="btn btn-danger" id="delete-zone-btn">
-                                        <i class="fa-solid fa-trash-can"></i> Eliminar Zona
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pestaña: Ajustes Globales -->
-                <div class="tab-pane" id="settings-tab">
-                    <div class="settings-wrapper">
-                        <h3>Información General del Servidor</h3>
-                        <div class="setting-item">
-                            <span>Framework Cargado</span>
-                            <strong id="settings-framework" class="badge-framework">QBCore</strong>
-                        </div>
-                        <div class="setting-item">
-                            <span>Modo Depuración (Debug)</span>
-                            <strong id="settings-debug">Desactivado</strong>
-                        </div>
-                        <div class="setting-item">
-                            <span>Idioma Configurado</span>
-                            <strong id="settings-locale">es</strong>
-                        </div>
-                    </div>
+    <section id="safezone-container" class="safezone-hud hidden" aria-live="polite">
+        <div id="safezone-card" class="safezone-card type-ic">
+            <div class="hud-icon">◆</div>
+            <div class="hud-copy">
+                <div class="hud-kicker">ZONA SEGURA <span id="zone-tag">IC</span></div>
+                <strong id="zone-name">Zona segura</strong>
+                <div id="rules-badges" class="hud-badges">
+                    <span id="badge-weapons">Sin armas</span>
+                    <span id="badge-melee">Sin peleas</span>
+                    <span id="badge-god">Protección</span>
+                    <span id="badge-speed"><b id="speed-limit-text">0 km/h</b></span>
                 </div>
             </div>
         </div>
+    </section>
+
+    <main id="admin-tablet" class="tablet-stage hidden" aria-hidden="true">
+        <div class="tablet-device">
+            <div class="tablet-camera"><span></span></div>
+            <div class="tablet-screen">
+                <header class="statusbar">
+                    <span id="tablet-clock">00:00</span>
+                    <span class="status-title">OS SafeZone Control</span>
+                    <div class="status-icons"><span>●</span><span>▮▮▮</span><span>▰</span></div>
+                </header>
+
+                <div class="app-shell">
+                    <aside class="sidebar">
+                        <div class="brand">
+                            <div class="brand-mark">OS</div>
+                            <div><strong>SAFEZONE</strong><small>ADMINISTRACIÓN</small></div>
+                        </div>
+
+                        <nav>
+                            <button class="nav-item active" data-tab="manage-tab"><span>▦</span> Zonas</button>
+                            <button class="nav-item" data-tab="create-tab"><span>＋</span> Crear zona</button>
+                            <button class="nav-item" data-tab="settings-tab"><span>⚙</span> Sistema</button>
+                        </nav>
+
+                        <div class="sidebar-meta">
+                            <div><span>Framework</span><strong id="settings-framework">-</strong></div>
+                            <div><span>Estado</span><strong class="online">ONLINE</strong></div>
+                        </div>
+                        <button id="close-tablet-btn" class="close-btn">Cerrar tablet</button>
+                    </aside>
+
+                    <section class="workspace">
+                        <header class="workspace-header">
+                            <div>
+                                <p class="eyebrow">CENTRO DE CONTROL</p>
+                                <h1 id="tab-title">Gestionar zonas</h1>
+                                <p id="tab-subtitle">Administra las zonas seguras en tiempo real.</p>
+                            </div>
+                            <div class="header-chip"><span id="zone-count">0</span> zonas</div>
+                        </header>
+
+                        <section id="manage-tab" class="tab-pane active">
+                            <div class="toolbar">
+                                <label class="searchbox"><span>⌕</span><input id="zone-search" type="text" placeholder="Buscar por nombre, ID o tipo"></label>
+                                <button id="refresh-zones-btn" class="secondary-btn">Actualizar</button>
+                            </div>
+                            <div id="zones-list-container" class="zones-list"></div>
+                            <div id="empty-zones" class="empty-state hidden"><b>No hay zonas para mostrar</b><span>Crea una nueva zona o cambia tu búsqueda.</span></div>
+                        </section>
+
+                        <section id="create-tab" class="tab-pane">
+                            <form id="create-zone-form" class="form-card">
+                                <div class="section-title"><span>01</span><div><b>Información general</b><small>Define la identidad y el perfil de la zona.</small></div></div>
+                                <div class="form-grid two">
+                                    <label><span>Nombre</span><input id="create-name" type="text" maxlength="80" placeholder="Ej. Plaza Central" required></label>
+                                    <label><span>Perfil</span><select id="create-rp-type"><option value="IC">IC</option><option value="OOC">OOC</option><option value="MIXED">Mixta</option><option value="CUSTOM">Personalizada</option></select></label>
+                                </div>
+
+                                <div class="section-title"><span>02</span><div><b>Geometría</b><small>Elige cómo se calcula el área segura.</small></div></div>
+                                <div class="form-grid two">
+                                    <label><span>Tipo</span><select id="create-zone-type"><option value="circle">Circular</option><option value="box">Caja 3D</option><option value="poly">Polígono</option></select></label>
+                                    <div id="dimension-inputs-container" class="dimension-box"></div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="button" id="use-my-pos-btn" class="secondary-btn">Ver mi posición</button>
+                                    <button type="submit" class="primary-btn">Crear zona</button>
+                                </div>
+                            </form>
+                        </section>
+
+                        <section id="edit-tab" class="tab-pane">
+                            <div class="editor-topbar">
+                                <button id="back-to-list-btn" class="secondary-btn">← Volver</button>
+                                <div><small>EDITANDO</small><strong id="editing-zone-name">Zona</strong></div>
+                            </div>
+                            <div class="editor-layout">
+                                <div class="form-card rules-card">
+                                    <div class="section-title"><span>01</span><div><b>Reglas activas</b><small>Configura las restricciones de esta zona.</small></div></div>
+                                    <div id="edit-rules-container" class="rules-grid"></div>
+                                </div>
+                                <div class="form-card config-card">
+                                    <div class="section-title"><span>02</span><div><b>Configuración</b><small>Apariencia, prioridad y acciones.</small></div></div>
+                                    <label><span>Nombre</span><input id="edit-name-input" type="text" maxlength="80"></label>
+                                    <label><span>Prioridad</span><input id="edit-priority-input" type="number" min="-10000" max="10000" value="0"></label>
+                                    <div class="toggle-row"><span>Blip del mapa</span><label class="switch"><input id="edit-blip-checkbox" type="checkbox"><i></i></label></div>
+                                    <div class="toggle-row"><span>Radio del mapa</span><label class="switch"><input id="edit-radius-checkbox" type="checkbox"><i></i></label></div>
+                                    <div class="toggle-row"><span>Marker 3D</span><label class="switch"><input id="edit-marker-checkbox" type="checkbox"><i></i></label></div>
+                                    <label><span>Color</span><input id="edit-color-picker" type="color" value="#28b45a"></label>
+                                    <label><span>Opacidad: <b id="alpha-val">100</b></span><input id="edit-color-alpha" type="range" min="0" max="255" value="100"></label>
+                                    <div class="stack-actions">
+                                        <button id="save-zone-btn" type="button" class="primary-btn">Guardar cambios</button>
+                                        <button id="teleport-zone-btn" type="button" class="secondary-btn">Teletransportarme</button>
+                                        <button id="delete-zone-btn" type="button" class="danger-btn">Eliminar zona</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section id="settings-tab" class="tab-pane">
+                            <div class="settings-grid">
+                                <article><span>Framework</span><strong id="settings-framework-card">-</strong></article>
+                                <article><span>Debug</span><strong id="settings-debug">-</strong></article>
+                                <article><span>Idioma</span><strong id="settings-locale">-</strong></article>
+                                <article><span>Zonas cargadas</span><strong id="settings-zone-count">0</strong></article>
+                            </div>
+                        </section>
+                    </section>
+                </div>
+            </div>
+            <div class="tablet-home-indicator"></div>
+        </div>
+    </main>
+
+    <div id="confirm-modal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-icon">!</div>
+            <h2>Eliminar zona</h2>
+            <p id="confirm-message">Esta acción no se puede deshacer.</p>
+            <div><button id="confirm-cancel" class="secondary-btn">Cancelar</button><button id="confirm-accept" class="danger-btn">Eliminar definitivamente</button></div>
+        </div>
     </div>
-    
-    <!-- Scripts -->
+
+    <div id="toast-stack" class="toast-stack"></div>
     <script src="script.js"></script>
 </body>
 </html>

@@ -319,9 +319,25 @@ end
 -- REGISTRO DE CALLBACKS NUI (TABLET INTERACTION)
 -- ==========================================
 
-RegisterNUICallback('closeTablet', function(data, cb)
+
+RegisterNUICallback('requestRefresh', function(_, cb)
+    TriggerServerEvent('os_safezone:server:requestSync')
+    cb({ ok = true })
+end)
+
+RegisterNetEvent('os_safezone:client:operationResult', function(operation, success, message)
+    SendNUIMessage({
+        action = 'operationResult',
+        operation = operation,
+        success = success == true,
+        message = message
+    })
+end)
+
+
+RegisterNUICallback('closeTablet', function(_, cb)
     SetNuiFocus(false, false)
-    cb('ok')
+    cb({ ok = true })
 end)
 
 RegisterNUICallback('teleportToZone', function(data, cb)
@@ -332,7 +348,7 @@ RegisterNUICallback('teleportToZone', function(data, cb)
         SetEntityCoords(PlayerPedId(), coords.x, coords.y, coords.z, false, false, false, true)
         Bridge.Notify("Teletransportado a la zona segura " .. zone.name, "success")
     end
-    cb('ok')
+    cb({ ok = zone ~= nil, error = zone and nil or 'Zona no encontrada.' })
 end)
 
 RegisterNUICallback('createZone', function(data, cb)
@@ -343,13 +359,14 @@ RegisterNUICallback('createZone', function(data, cb)
     data.coords = coords
     
     -- Cargar perfiles por defecto si no están presentes
-    data.rules = Config.Profiles[data.roleplayType] or Config.Profiles.IC
-    data.visual = Constants.DefaultZoneVisual
-    data.priority = 0
-    data.enabled = true
+    data.rules = SafeZoneSchema.NormalizeRules(data.rules, data.roleplayType)
+    data.visual = SafeZoneSchema.NormalizeVisual(data.visual)
+    data.permissions = SafeZoneSchema.NormalizePermissions(data.permissions)
+    data.priority = tonumber(data.priority) or 0
+    data.enabled = data.enabled ~= false
     
     TriggerServerEvent('os_safezone:server:createZone', data)
-    cb('ok')
+    cb({ ok = true })
 end)
 
 RegisterNUICallback('updateZone', function(data, cb)
@@ -357,7 +374,7 @@ RegisterNUICallback('updateZone', function(data, cb)
     if id and data.data then
         TriggerServerEvent('os_safezone:server:updateZone', id, data.data)
     end
-    cb('ok')
+    cb({ ok = id ~= nil and data.data ~= nil, error = id and nil or 'ID inválido.' })
 end)
 
 RegisterNUICallback('deleteZone', function(data, cb)
@@ -365,7 +382,7 @@ RegisterNUICallback('deleteZone', function(data, cb)
     if id then
         TriggerServerEvent('os_safezone:server:deleteZone', id)
     end
-    cb('ok')
+    cb({ ok = id ~= nil, error = id and nil or 'ID inválido.' })
 end)
 
 RegisterNUICallback('toggleZone', function(data, cb)
@@ -373,7 +390,7 @@ RegisterNUICallback('toggleZone', function(data, cb)
     if id then
         TriggerServerEvent('os_safezone:server:toggleZone', id, data.state)
     end
-    cb('ok')
+    cb({ ok = id ~= nil, error = id and nil or 'ID inválido.' })
 end)
 
 RegisterNUICallback('drawPolygon', function(data, cb)
@@ -391,20 +408,21 @@ RegisterNUICallback('drawPolygon', function(data, cb)
                 maxZ = maxZ > 0 and maxZ or (data.coords.z + 15.0) 
             }
             data.points = points
-            data.rules = Config.Profiles[data.roleplayType] or Config.Profiles.IC
-            data.visual = Constants.DefaultZoneVisual
-            data.priority = 0
-            data.enabled = true
+            data.rules = SafeZoneSchema.NormalizeRules(data.rules, data.roleplayType)
+            data.visual = SafeZoneSchema.NormalizeVisual(data.visual)
+            data.permissions = SafeZoneSchema.NormalizePermissions(data.permissions)
+            data.priority = tonumber(data.priority) or 0
+            data.enabled = data.enabled ~= false
             
             TriggerServerEvent('os_safezone:server:createZone', data)
         end
     end)
-    cb('ok')
+    cb({ ok = true })
 end)
 
 RegisterNUICallback('requestMyPos', function(data, cb)
     local playerPed = PlayerPedId()
     local coords = GetEntityCoords(playerPed)
     Bridge.Notify(("Tu posición: X: %.1f, Y: %.1f, Z: %.1f"):format(coords.x, coords.y, coords.z), "info")
-    cb('ok')
+    cb({ ok = true })
 end)

@@ -1,14 +1,15 @@
 fx_version 'cerulean'
 game 'gta5'
 
-author 'Oscar / Antigravity'
+author 'Oscar Dev'
 description 'Sistema avanzado de zonas seguras modular, configurable y persistente'
-version '1.0.0'
+version '2.0.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
     'config.lua',
     'shared/constants.lua',
+    'shared/schema.lua',
     'shared/utils.lua',
     'shared/locales.lua'
 }
@@ -32,6 +33,8 @@ server_scripts {
     'bridge/qbox.lua',
     'bridge/esx.lua',
     'server/permissions.lua',
+    'server/logger.lua',
+    'server/security.lua',
     'server/database.lua',
     'server/commands.lua',
     'server/main.lua'
@@ -45,6 +48,7 @@ files {
     'web/script.js'
 }
 
+
 exports {
     -- Client Exports
     'IsPlayerInSafeZone',
@@ -57,6 +61,7 @@ exports {
     'GetSafeZoneById',
     'SetSafeZoneState'
 }
+
 
 
 provide 'pd-safe'
