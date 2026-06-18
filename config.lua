@@ -159,3 +159,23 @@ Config.EmergencyJobs = {
     ['ambulance'] = true,
     ['medical'] = true,
 }
+
+-- Persistencia y sincronización interna
+Config.Database = {
+    AutoCreateTable = true,
+    AutoInjectLegacyZones = false, -- Evita insertar zonas de ejemplo en instalaciones nuevas.
+    QueryTimeoutMs = 10000
+}
+
+Config.Sync = {
+    RequestCooldownMs = 1500,
+    FullResyncIntervalMs = 300000, -- Red de seguridad cada 5 minutos.
+    MaxZones = 500
+}
+
+Config.ZoneLimits = {
+    MaxPolygonPoints = 64,
+    MaxRadius = 2500.0,
+    MaxBoxSize = 2500.0,
+    MaxNameLength = 100
+}

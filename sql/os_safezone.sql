@@ -15,5 +15,7 @@ CREATE TABLE IF NOT EXISTS `os_safezones` (
     `created_by` VARCHAR(100) NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    INDEX `idx_os_safezones_enabled_priority` (`enabled`, `priority`),
+    INDEX `idx_os_safezones_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

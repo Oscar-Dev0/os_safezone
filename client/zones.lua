@@ -171,7 +171,7 @@ CreateThread(function()
                         DrawMarker(1, zone.coords.x, zone.coords.y, zone.coords.z - 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, r * 2.0, r * 2.0, 6.0, color.r, color.g, color.b, color.a, false, false, 2, false, nil, nil, false)
                     elseif zone.zoneType == 'box' and zone.dimensions then
                         local size = zone.dimensions
-                        DrawMarker(43, zone.coords.x, zone.coords.y, zone.coords.z, 0.0, 0.0, 0.0, 0.0, 0.0, zone.rotation or 0.0, size.x or 1.0, size.y or 1.0, size.z or 1.0, color.r, color.g, color.b, color.a, false, false, 2, false, nil, nil, false)
+                        DrawMarker(43, zone.coords.x, zone.coords.y, zone.coords.z, 0.0, 0.0, 0.0, 0.0, 0.0, (zone.dimensions and zone.dimensions.heading) or zone.rotation or 0.0, size.x or 1.0, size.y or 1.0, size.z or 1.0, color.r, color.g, color.b, color.a, false, false, 2, false, nil, nil, false)
                     end
                 end
             end
@@ -210,14 +210,14 @@ function RegisterWorldZone(id, zoneData)
             zoneObj = lib.zones.box({
                 coords = zoneData.coords,
                 size = zoneData.dimensions,
-                rotation = zoneData.rotation or 0.0,
+                rotation = zoneData.dimensions.heading or zoneData.rotation or 0.0,
                 onEnter = onEnter,
                 onExit = onExit
             })
         elseif zoneData.zoneType == 'poly' and zoneData.points and zoneData.dimensions then
             local pPoints = {}
             for _, pt in ipairs(zoneData.points) do
-                table.insert(pPoints, vector3(pt.x, pt.y, zoneData.coords.z))
+                table.insert(pPoints, vector3(pt.x, pt.y, ((zoneData.dimensions.minZ + zoneData.dimensions.maxZ) / 2.0)))
             end
             
             zoneObj = lib.zones.poly({
@@ -317,7 +317,7 @@ CreateThread(function()
                         if zone.zoneType == 'circle' and zone.dimensions then
                             isInside = dist <= zone.dimensions.radius
                         elseif zone.zoneType == 'box' and zone.dimensions then
-                            isInside = IsPointInBox(playerCoords, zone.coords, zone.dimensions, zone.rotation or 0.0)
+                            isInside = IsPointInBox(playerCoords, zone.coords, zone.dimensions, (zone.dimensions and zone.dimensions.heading) or zone.rotation or 0.0)
                         elseif zone.zoneType == 'poly' and zone.points and zone.dimensions then
                             local minZ = zone.dimensions.minZ or (zone.coords.z - 10.0)
                             local maxZ = zone.dimensions.maxZ or (zone.coords.z + 10.0)

@@ -85,7 +85,7 @@ function SafeZoneSchema.Normalize(raw, existingId)
 
     local zone = {
         id = existingId and tonumber(existingId) or tonumber(raw.id),
-        name = tostring(raw.name or ''):sub(1, 100),
+        name = tostring(raw.name or ''):gsub('^%s+', ''):gsub('%s+$', ''):sub(1, (Config.ZoneLimits and Config.ZoneLimits.MaxNameLength) or 100),
         zoneType = zoneType,
         roleplayType = roleplayType,
         coords = {
@@ -105,18 +105,28 @@ function SafeZoneSchema.Normalize(raw, existingId)
     }
 
     if zoneType == 'circle' then
-        zone.dimensions.radius = clamp(finiteNumber(zone.dimensions.radius, 25.0), 0.5, 5000.0)
+        zone.dimensions.radius = clamp(finiteNumber(zone.dimensions.radius, 25.0), 0.5, (Config.ZoneLimits and Config.ZoneLimits.MaxRadius) or 2500.0)
     elseif zoneType == 'box' then
-        zone.dimensions.length = clamp(finiteNumber(zone.dimensions.length, 20.0), 0.5, 5000.0)
-        zone.dimensions.width = clamp(finiteNumber(zone.dimensions.width, 20.0), 0.5, 5000.0)
-        zone.dimensions.heading = finiteNumber(zone.dimensions.heading, 0.0) % 360.0
-        zone.dimensions.minZ = finiteNumber(zone.dimensions.minZ, zone.coords.z - 5.0)
-        zone.dimensions.maxZ = finiteNumber(zone.dimensions.maxZ, zone.coords.z + 5.0)
+        local maxSize = (Config.ZoneLimits and Config.ZoneLimits.MaxBoxSize) or 2500.0
+        local length = finiteNumber(zone.dimensions.length or zone.dimensions.x, 20.0)
+        local width = finiteNumber(zone.dimensions.width or zone.dimensions.y, 20.0)
+        local height = finiteNumber(zone.dimensions.height or zone.dimensions.z, 15.0)
+        local heading = finiteNumber(zone.dimensions.heading or raw.rotation, 0.0) % 360.0
+        zone.dimensions.length = clamp(length, 0.5, maxSize)
+        zone.dimensions.width = clamp(width, 0.5, maxSize)
+        zone.dimensions.height = clamp(height, 0.5, maxSize)
+        -- Alias canónicos para ox_lib y el detector fallback.
+        zone.dimensions.x = zone.dimensions.length
+        zone.dimensions.y = zone.dimensions.width
+        zone.dimensions.z = zone.dimensions.height
+        zone.dimensions.heading = heading
+        zone.dimensions.minZ = finiteNumber(zone.dimensions.minZ, zone.coords.z - (zone.dimensions.height / 2.0))
+        zone.dimensions.maxZ = finiteNumber(zone.dimensions.maxZ, zone.coords.z + (zone.dimensions.height / 2.0))
     else
         zone.dimensions.minZ = finiteNumber(zone.dimensions.minZ, zone.coords.z - 5.0)
         zone.dimensions.maxZ = finiteNumber(zone.dimensions.maxZ, zone.coords.z + 10.0)
         for index, point in ipairs(type(raw.points) == 'table' and raw.points or {}) do
-            if index > 100 then break end
+            if index > ((Config.ZoneLimits and Config.ZoneLimits.MaxPolygonPoints) or 64) then break end
             if type(point) == 'table' then
                 zone.points[#zone.points + 1] = {
                     x = finiteNumber(point.x or point[1], 0.0),
@@ -138,8 +148,11 @@ function SafeZoneSchema.Validate(zone)
     if zone.zoneType == 'poly' and #zone.points < 3 then
         return false, 'Un polígono necesita al menos 3 puntos.'
     end
-    if zone.zoneType == 'poly' and zone.dimensions.minZ >= zone.dimensions.maxZ then
+    if (zone.zoneType == 'poly' or zone.zoneType == 'box') and zone.dimensions.minZ >= zone.dimensions.maxZ then
         return false, 'minZ debe ser menor que maxZ.'
+    end
+    if math.abs(zone.coords.x) > 10000.0 or math.abs(zone.coords.y) > 10000.0 or math.abs(zone.coords.z) > 5000.0 then
+        return false, 'Las coordenadas están fuera de los límites válidos del mapa.'
     end
     return true
 end

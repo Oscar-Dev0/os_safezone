@@ -1,5 +1,19 @@
 isInsideSafeZone = false
 CurrentSafeZone = nil
+local SafeZoneRevision = 0
+local NuiRequestSequence = 0
+
+local function nextRequestId()
+    NuiRequestSequence = NuiRequestSequence + 1
+    return ('%s:%d:%d'):format(GetPlayerServerId(PlayerId()), GetGameTimer(), NuiRequestSequence)
+end
+
+local function acceptRevision(incoming)
+    incoming = tonumber(incoming) or 0
+    if incoming > 0 and incoming < SafeZoneRevision then return false end
+    if incoming > SafeZoneRevision then SafeZoneRevision = incoming end
+    return true
+end
 
 -- Copia profunda de tabla
 local function CopyTable(tbl)
@@ -152,11 +166,17 @@ local function GetZonesArray()
     for _, zone in pairs(ActiveZones) do
         table.insert(zoneList, zone)
     end
+    table.sort(zoneList, function(a, b)
+        local pa, pb = tonumber(a.priority) or 0, tonumber(b.priority) or 0
+        if pa ~= pb then return pa > pb end
+        return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
+    end)
     return zoneList
 end
 
 -- Sincronización completa al conectar
-RegisterNetEvent('os_safezone:client:syncZones', function(zones)
+RegisterNetEvent('os_safezone:client:syncZones', function(zones, incomingRevision)
+    if not acceptRevision(incomingRevision) then return end
     local start = GetGameTimer()
     
     -- Limpiar zonas existentes
@@ -178,7 +198,8 @@ RegisterNetEvent('os_safezone:client:syncZones', function(zones)
 end)
 
 -- Añadir una nueva zona
-RegisterNetEvent('os_safezone:client:addZone', function(zoneData)
+RegisterNetEvent('os_safezone:client:addZone', function(zoneData, incomingRevision)
+    if not acceptRevision(incomingRevision) then return end
     local zoneId = tonumber(zoneData.id) or zoneData.id
     ActiveZones[zoneId] = zoneData
     RegisterWorldZone(zoneId, zoneData)
@@ -192,7 +213,8 @@ RegisterNetEvent('os_safezone:client:addZone', function(zoneData)
 end)
 
 -- Actualizar una zona existente
-RegisterNetEvent('os_safezone:client:updateZone', function(zoneId, zoneData)
+RegisterNetEvent('os_safezone:client:updateZone', function(zoneId, zoneData, incomingRevision)
+    if not acceptRevision(incomingRevision) then return end
     zoneId = tonumber(zoneId) or zoneId
     local wasInside = InsideZones[zoneId] ~= nil
     
@@ -216,7 +238,8 @@ RegisterNetEvent('os_safezone:client:updateZone', function(zoneId, zoneData)
 end)
 
 -- Eliminar una zona
-RegisterNetEvent('os_safezone:client:removeZone', function(zoneId)
+RegisterNetEvent('os_safezone:client:removeZone', function(zoneId, incomingRevision)
+    if not acceptRevision(incomingRevision) then return end
     zoneId = tonumber(zoneId) or zoneId
     UnregisterWorldZone(zoneId)
     ActiveZones[zoneId] = nil
@@ -233,7 +256,8 @@ RegisterNetEvent('os_safezone:client:removeZone', function(zoneId)
 end)
 
 -- Activar / Desactivar zona
-RegisterNetEvent('os_safezone:client:toggleZone', function(zoneId, enabled)
+RegisterNetEvent('os_safezone:client:toggleZone', function(zoneId, enabled, incomingRevision)
+    if not acceptRevision(incomingRevision) then return end
     zoneId = tonumber(zoneId) or zoneId
     if ActiveZones[zoneId] then
         ActiveZones[zoneId].enabled = enabled
@@ -257,6 +281,14 @@ end)
 CreateThread(function()
     Wait(1000)
     TriggerServerEvent('os_safezone:server:requestSync')
+end)
+
+CreateThread(function()
+    local interval = (Config.Sync and Config.Sync.FullResyncIntervalMs) or 300000
+    while true do
+        Wait(math.max(interval, 30000))
+        TriggerServerEvent('os_safezone:server:requestSync')
+    end
 end)
 
 -- ==========================================
@@ -325,12 +357,15 @@ RegisterNUICallback('requestRefresh', function(_, cb)
     cb({ ok = true })
 end)
 
-RegisterNetEvent('os_safezone:client:operationResult', function(operation, success, message)
+RegisterNetEvent('os_safezone:client:operationResult', function(operation, success, message, requestId, incomingRevision)
+    acceptRevision(incomingRevision)
     SendNUIMessage({
         action = 'operationResult',
         operation = operation,
         success = success == true,
-        message = message
+        message = message,
+        requestId = requestId,
+        revision = SafeZoneRevision
     })
 end)
 
@@ -342,13 +377,19 @@ end)
 
 RegisterNUICallback('teleportToZone', function(data, cb)
     local id = tonumber(data.id)
-    local zone = ActiveZones[id]
-    if zone then
-        local coords = zone.coords
-        SetEntityCoords(PlayerPedId(), coords.x, coords.y, coords.z, false, false, false, true)
-        Bridge.Notify("Teletransportado a la zona segura " .. zone.name, "success")
+    if not id or not ActiveZones[id] then
+        return cb({ ok = false, error = 'Zona no encontrada.' })
     end
-    cb({ ok = zone ~= nil, error = zone and nil or 'Zona no encontrada.' })
+    TriggerServerEvent('os_safezone:server:teleportToZone', id)
+    cb({ ok = true })
+end)
+
+RegisterNetEvent('os_safezone:client:authorizedTeleport', function(coords, zoneName)
+    if type(coords) ~= 'table' and type(coords) ~= 'vector3' then return end
+    local ped = PlayerPedId()
+    RequestCollisionAtCoord(coords.x, coords.y, coords.z)
+    SetEntityCoords(ped, coords.x, coords.y, coords.z + 0.5, false, false, false, false)
+    Bridge.Notify(('Teletransportado a %s'):format(zoneName or 'la zona'), 'success')
 end)
 
 RegisterNUICallback('createZone', function(data, cb)
@@ -365,14 +406,14 @@ RegisterNUICallback('createZone', function(data, cb)
     data.priority = tonumber(data.priority) or 0
     data.enabled = data.enabled ~= false
     
-    TriggerServerEvent('os_safezone:server:createZone', data)
+    TriggerServerEvent('os_safezone:server:createZone', data, nextRequestId())
     cb({ ok = true })
 end)
 
 RegisterNUICallback('updateZone', function(data, cb)
     local id = tonumber(data.id)
     if id and data.data then
-        TriggerServerEvent('os_safezone:server:updateZone', id, data.data)
+        TriggerServerEvent('os_safezone:server:updateZone', id, data.data, nextRequestId())
     end
     cb({ ok = id ~= nil and data.data ~= nil, error = id and nil or 'ID inválido.' })
 end)
@@ -380,7 +421,7 @@ end)
 RegisterNUICallback('deleteZone', function(data, cb)
     local id = tonumber(data.id)
     if id then
-        TriggerServerEvent('os_safezone:server:deleteZone', id)
+        TriggerServerEvent('os_safezone:server:deleteZone', id, nextRequestId())
     end
     cb({ ok = id ~= nil, error = id and nil or 'ID inválido.' })
 end)
@@ -388,7 +429,7 @@ end)
 RegisterNUICallback('toggleZone', function(data, cb)
     local id = tonumber(data.id)
     if id then
-        TriggerServerEvent('os_safezone:server:toggleZone', id, data.state)
+        TriggerServerEvent('os_safezone:server:toggleZone', id, data.state, nextRequestId())
     end
     cb({ ok = id ~= nil, error = id and nil or 'ID inválido.' })
 end)
@@ -414,7 +455,7 @@ RegisterNUICallback('drawPolygon', function(data, cb)
             data.priority = tonumber(data.priority) or 0
             data.enabled = data.enabled ~= false
             
-            TriggerServerEvent('os_safezone:server:createZone', data)
+            TriggerServerEvent('os_safezone:server:createZone', data, nextRequestId())
         end
     end)
     cb({ ok = true })

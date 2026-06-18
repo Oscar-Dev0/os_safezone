@@ -38,16 +38,22 @@ end
 function Database.GetAllZones(callback)
     MySQL.query("SELECT * FROM os_safezones", {}, function(results)
         -- Si no hay resultados o la tabla está vacía, ejecutar auto-inyección de configuraciones previas
-        if not results or #results == 0 then
-            Database.AutoInjectDefaultZones(function()
-                Database.GetAllZones(callback)
+        if not results then
+            Utils.LogError('No se pudieron cargar las zonas desde MySQL.')
+            callback({}, 'database_error')
+            return
+        end
+
+        if #results == 0 and Config.Database and Config.Database.AutoInjectLegacyZones then
+            Database.AutoInjectDefaultZones(function(success)
+                if success then Database.GetAllZones(callback) else callback({}, 'legacy_seed_failed') end
             end)
             return
         end
         
         local loadedZones = {}
         for _, row in ipairs(results) do
-            local zone = {
+            local raw = {
                 id = tonumber(row.id),
                 name = row.name,
                 zoneType = row.zone_type,
@@ -63,17 +69,13 @@ function Database.GetAllZones(callback)
                 enabled = row.enabled == 1 or row.enabled == true,
                 createdBy = row.created_by
             }
-            
-            -- Asegurar que las coordenadas y puntos sean del tipo vector de GTA si es necesario
-            zone.coords = Utils.ToVector3(zone.coords)
-            if zone.points and type(zone.points) == 'table' then
-                for i, pt in ipairs(zone.points) do
-                    -- Si es un polígono, los puntos son vector2 (x, y)
-                    zone.points[i] = vector2(tonumber(pt.x or pt[1]) or 0.0, tonumber(pt.y or pt[2]) or 0.0)
-                end
+            local zone = SafeZoneSchema.Normalize(raw, raw.id)
+            local valid, reason = SafeZoneSchema.Validate(zone)
+            if valid then
+                loadedZones[zone.id] = zone
+            else
+                Utils.LogError(('Zona ID %s ignorada: %s'):format(tostring(raw.id), reason))
             end
-            
-            loadedZones[zone.id] = zone
         end
         callback(loadedZones)
     end)
@@ -341,9 +343,10 @@ function Database.AutoInjectDefaultZones(callback)
         }
         MySQL.insert(query, params, function(insertId)
             completed = completed + 1
+            if not insertId then Utils.LogError('Falló la auto-inyección de una zona heredada.') end
             if completed == total then
-                Utils.LogInfo("Auto-inyección completada con éxito. Insertadas " .. total .. " zonas en la base de datos.")
-                callback()
+                Utils.LogInfo(('Auto-inyección finalizada. Procesadas %d zonas.'):format(total))
+                callback(true)
             end
         end)
     end
