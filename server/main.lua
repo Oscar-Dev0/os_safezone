@@ -31,7 +31,12 @@ local function notify(src, message, kind)
 end
 
 local function broadcast(eventName, ...)
-    TriggerClientEvent(eventName, -1, ..., revision)
+    -- En Lua, un vararg que no está en la última posición se reduce a un solo valor.
+    -- Empaquetamos los argumentos para conservarlos todos y añadir la revisión al final.
+    local args = table.pack(...)
+    args.n = args.n + 1
+    args[args.n] = revision
+    TriggerClientEvent(eventName, -1, table.unpack(args, 1, args.n))
 end
 
 local function normalize(raw, id, creator)

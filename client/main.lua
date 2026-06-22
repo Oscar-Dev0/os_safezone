@@ -187,10 +187,20 @@ RegisterNetEvent('os_safezone:client:syncZones', function(zones, incomingRevisio
     ActiveZones = {}
     InsideZones = {}
     
+    if type(zones) ~= 'table' then
+        Utils.LogError(('Sincronización inválida: se esperaba una tabla de zonas y llegó %s.'):format(type(zones)))
+        zones = {}
+    end
+
     for id, zone in pairs(zones) do
-        local numId = tonumber(id) or id
-        ActiveZones[numId] = zone
-        RegisterWorldZone(numId, zone)
+        if type(zone) == 'table' then
+            local numId = tonumber(zone.id) or tonumber(id) or id
+            zone.id = tonumber(zone.id) or tonumber(numId) or zone.id
+            ActiveZones[numId] = zone
+            RegisterWorldZone(numId, zone)
+        else
+            Utils.LogError(('Zona inválida ignorada durante sync [clave %s, tipo %s].'):format(tostring(id), type(zone)))
+        end
     end
     
     ResolveActiveSafeZone()
@@ -200,6 +210,11 @@ end)
 -- Añadir una nueva zona
 RegisterNetEvent('os_safezone:client:addZone', function(zoneData, incomingRevision)
     if not acceptRevision(incomingRevision) then return end
+    if type(zoneData) ~= 'table' then
+        Utils.LogError(('addZone recibió datos inválidos (%s). Se solicitará una resincronización.'):format(type(zoneData)))
+        TriggerServerEvent('os_safezone:server:requestSync')
+        return
+    end
     local zoneId = tonumber(zoneData.id) or zoneData.id
     ActiveZones[zoneId] = zoneData
     RegisterWorldZone(zoneId, zoneData)
@@ -215,6 +230,13 @@ end)
 -- Actualizar una zona existente
 RegisterNetEvent('os_safezone:client:updateZone', function(zoneId, zoneData, incomingRevision)
     if not acceptRevision(incomingRevision) then return end
+    if type(zoneData) ~= 'table' then
+        Utils.LogError(('updateZone recibió datos inválidos para la zona %s (%s). Se solicitará una resincronización.'):format(
+            tostring(zoneId), type(zoneData)
+        ))
+        TriggerServerEvent('os_safezone:server:requestSync')
+        return
+    end
     zoneId = tonumber(zoneId) or zoneId
     local wasInside = InsideZones[zoneId] ~= nil
     

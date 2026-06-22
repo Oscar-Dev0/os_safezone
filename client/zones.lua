@@ -152,7 +152,7 @@ CreateThread(function()
         local playerCoords = GetEntityCoords(playerPed)
         
         for id, zone in pairs(ActiveZones) do
-            if zone.enabled and zone.visual and zone.visual.marker then
+            if type(zone) == 'table' and zone.enabled and zone.visual and zone.visual.marker then
                 local dist = #(playerCoords - zone.coords)
                 local maxDrawDist = 150.0
                 
@@ -187,8 +187,15 @@ end)
 function RegisterWorldZone(id, zoneData)
     -- Remover zona existente si ya estaba registrada
     UnregisterWorldZone(id)
-    
-    if not zoneData.enabled then return end
+
+    if type(zoneData) ~= 'table' then
+        Utils.LogError(('No se pudo registrar la zona ID %s: se esperaba una tabla y llegó %s.'):format(
+            tostring(id), type(zoneData)
+        ))
+        return false
+    end
+
+    if not zoneData.enabled then return false end
     
     CreateZoneVisuals(id, zoneData)
     
@@ -300,7 +307,7 @@ CreateThread(function()
             local nearAny = false
             
             for id, zone in pairs(ActiveZones) do
-                if zone.enabled then
+                if type(zone) == 'table' and zone.enabled then
                     local isInside = false
                     local dist = #(playerCoords - zone.coords)
                     
